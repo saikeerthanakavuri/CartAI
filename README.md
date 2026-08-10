@@ -1,10 +1,10 @@
 <div align="center">
 
-# 🛒 SmartBasket AI
+# 🛒 CartAI
 
-### AI-Powered Smart Self-Checkout & Retail Growth Engine
+### Intelligent Retail Assistant for Smarter Shopping and Store Management
 
-*Theme: AI for Business Development*
+*Domain: Artificial Intelligence & Machine Learning – Retail Business Intelligence*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
@@ -14,30 +14,72 @@
 
 ---
 
-## What is SmartBasket AI?
+## Problem Statement
 
-SmartBasket AI is a full-stack retail intelligence platform that replaces traditional checkout lanes with a camera-first, AI-driven experience. It cuts checkout times from **5 minutes to 5 seconds**, increases store revenue through automated upselling, and gives store owners a real-time business copilot — all without expensive hardware upgrades.
+Small and medium-sized retailers often rely on manual inventory tracking, traditional checkout processes, and intuition-based decisions for product placement and promotions. This can result in stockouts, excess inventory, missed cross-selling opportunities, and inefficient customer service. Store owners may have sales data but lack simple tools to convert it into actionable business insights. Customers also face delays during checkout and receive limited personalized product recommendations.
+
+---
+
+## Proposed Solution
+
+CartAI is a full-stack AI-powered retail intelligence platform designed for small and medium-sized retailers. It combines customer-facing shopping assistance with an intelligent business dashboard.
+
+Customers can use a standard camera to identify products, automatically add them to a digital cart, and receive AI-generated complementary product recommendations. For example, after selecting chips, the system can suggest a suitable dip or beverage based on purchasing patterns.
+
+At the business level, every transaction updates the inventory database and contributes to the store's sales intelligence. The system analyzes historical and real-time sales data to forecast product demand, identify products approaching low-stock levels, and surface actionable insights through a natural-language business copilot — allowing store owners to query their own data in plain English without needing dedicated analysts or complex dashboards.
+
+---
+
+## Innovation & Uniqueness
+
+Unlike conventional retail systems that primarily record transactions, CartAI turns transaction data into actionable business intelligence. Its key innovation is connecting the customer shopping experience directly with the retailer's decision-making system. A single product interaction can trigger a recommendation for the customer while simultaneously updating inventory and sales intelligence for the store owner.
+
+The natural-language business copilot further reduces the technical barrier for small retailers by allowing them to interact with their business data using ordinary questions instead of complex dashboards. This makes advanced AI capabilities accessible without requiring dedicated data analysts or expensive infrastructure.
+
+---
+
+## User Flow
+
+### Entry Point — Mobile Phone UI
+On opening the website, users see a **simulated mobile phone frame** on screen. The phone displays a home screen with various app icons, including the CartAI app. Clicking the CartAI app icon presents two login choices:
+
+---
+
+### 👤 Customer Login
+- Login via **mobile number**
+- After login, the customer accesses the shopping interface:
+  - Camera-based product scanning
+  - Live cart with AI recommendations
+  - QR code checkout
+
+### 🏪 Shopkeeper Login
+- Login via **Gmail** (hardcoded credentials)
+  - Email: `shopkeeper@gmail.com`
+- After login, the shopkeeper accesses the business dashboard:
+  - Real-time inventory & sales analytics
+  - Low-stock alerts and demand forecasts
+  - Natural-language AI business copilot
 
 ---
 
 ## Core Features
 
-### 📷 1. Instant Multimodal Camera Scanning
-Traditional barcodes are slow and fragile. SmartBasket AI uses a **Vision AI model** to identify any product held in front of a standard webcam or tablet camera — instantly resolving the product name, weight, variant, and price, and adding it directly to the cart. No barcode. No scanner. No delay.
+### 📷 1. Camera-Based Product Identification
+CartAI uses a **Multimodal Vision AI model** to identify any product held in front of a standard webcam or tablet camera — resolving the product name, variant, and price and adding it directly to the digital cart. No barcode scanner required.
 
 ---
 
-### 🧠 2. In-Aisle Dynamic AI Upselling Engine
-Every scan triggers an intelligent recommendation engine. When a customer scans a $2 bag of chips, the AI immediately surfaces a high-margin pairing — *"Add salsa for $1.50 and save 10%"* — acting as an automated salesperson embedded in the cart itself.
+### 🧠 2. AI-Powered Product Recommendations
+Every product scan triggers an intelligent recommendation engine built on association rule mining (Apriori/FP-Growth). When a customer scans chips, the system surfaces a relevant pairing — *"Add salsa and save 10%"* — based on real purchasing patterns.
 
-**Business impact:** Directly increases Average Order Value (AOV) on every transaction.
+**Business impact:** Increases Average Order Value (AOV) on every transaction.
 
 ---
 
 ### ⚡ 3. Frictionless QR Code Checkout
-When a customer is done shopping, SmartBasket AI generates an instant **QR code digital receipt** on screen. One scan with their phone completes payment and lets them walk out.
+When a customer is done shopping, CartAI generates an instant **QR code digital receipt**. One scan completes payment and lets them walk out — no cashier needed.
 
-| Traditional Checkout | SmartBasket AI |
+| Traditional Checkout | CartAI |
 |---|---|
 | ~5 minutes per customer | ~5 seconds per customer |
 | Requires a cashier | Fully self-serve |
@@ -45,19 +87,18 @@ When a customer is done shopping, SmartBasket AI generates an instant **QR code 
 
 ---
 
-### 📊 4. Live Store Operations Dashboard
-Every product scanned automatically deducts from the inventory database in real time. Store managers get a centralized live dashboard showing:
+### 📊 4. Real-Time Inventory & Sales Dashboard
+Every product scanned automatically deducts from the inventory database. Store managers get a live dashboard showing:
 
 - Daily and hourly revenue trends
 - Top-selling products
 - Peak shopping hours
 - Live shelf stock levels with low-inventory alerts
-
-No more manual stock counts. No more end-of-day surprise shortages.
+- Demand forecasts powered by Scikit-learn
 
 ---
 
-### 💬 5. Natural-Language "Virtual Store Manager" Copilot
+### 💬 5. Natural-Language Business Copilot
 A conversational AI assistant built into the owner dashboard. Ask it anything in plain English:
 
 > *"Which items are running low on stock?"*
@@ -66,19 +107,75 @@ A conversational AI assistant built into the owner dashboard. Ask it anything in
 > *"How can I increase profits today?"*
 > → *"Your top upsell window is 3–5 PM. Enable the chips + dip bundle discount during that period."*
 
-The copilot analyzes live sales data and turns it into immediate, actionable advice.
+---
+
+## Expected Impact & Feasibility
+
+CartAI is targeted at small and medium-sized retail stores that cannot afford sophisticated enterprise retail systems. It can help:
+
+- Reduce manual inventory effort
+- Identify potential stockouts earlier
+- Increase average basket value through relevant recommendations
+- Provide faster access to business insights
+
+The system is built as a **software-first solution** using existing cameras and readily available AI APIs, avoiding specialized hardware requirements. A functional prototype can be developed within 24 hours using simulated or sample retail transaction data, demonstrating the complete workflow from product recognition and recommendation to inventory updates, demand forecasting, and AI-generated business insights.
 
 ---
 
 ## Why It Matters
 
-| Pain Point | SmartBasket AI Solution |
+| Pain Point | CartAI Solution |
 |---|---|
-| Long checkout queues | QR code exit in 5 seconds |
-| Missed upsell revenue | AI recommendations on every scan |
-| Manual inventory tracking | Real-time automatic deduction |
-| Opaque store performance | Live visual analytics dashboard |
-| No business advisor on staff | 24/7 AI copilot in plain English |
+| Manual inventory tracking | Real-time automatic deduction on every scan |
+| Missed cross-selling opportunities | AI recommendations based on purchase patterns |
+| Slow, cashier-dependent checkout | QR code self-checkout in seconds |
+| Sales data with no actionable insights | Natural-language business copilot |
+| Enterprise tools too expensive | Software-first, no specialized hardware needed |
+
+---
+
+## Project Structure
+
+```
+CartAI/
+├── frontend/               # React.js + Vite + Tailwind CSS
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   │   ├── MobileFrame/        # Mobile phone UI wrapper
+│   │   │   ├── HomeScreen/         # App grid / home screen
+│   │   │   ├── LoginSelector/      # Customer vs Shopkeeper choice
+│   │   │   ├── CustomerLogin/      # Mobile number login
+│   │   │   ├── ShopkeeperLogin/    # Gmail login
+│   │   │   ├── Cart/               # Customer cart & scanner
+│   │   │   └── Dashboard/          # Shopkeeper analytics dashboard
+│   │   ├── pages/          # Route-level page components
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── public/
+│   ├── index.html
+│   ├── tailwind.config.js
+│   └── vite.config.js
+│
+├── backend/                # Python + FastAPI
+│   ├── main.py             # App entry point
+│   ├── routes/             # API route handlers
+│   │   ├── auth.py
+│   │   ├── products.py
+│   │   ├── cart.py
+│   │   ├── inventory.py
+│   │   └── copilot.py
+│   ├── models/             # DB models & schemas
+│   ├── services/           # Business logic
+│   │   ├── vision.py       # Multimodal product identification
+│   │   ├── recommender.py  # Apriori/FP-Growth engine
+│   │   ├── forecasting.py  # Scikit-learn demand forecasting
+│   │   └── copilot.py      # LLM API integration
+│   ├── database/
+│   │   └── cartai.db       # SQLite database
+│   └── requirements.txt
+│
+└── README.md
+```
 
 ---
 
@@ -86,12 +183,16 @@ The copilot analyzes live sales data and turns it into immediate, actionable adv
 
 | Layer | Technology |
 |---|---|
-| Vision AI | Multimodal LLM / Computer Vision |
-| Upsell Engine | ML-based recommendation model |
-| Backend | Python / FastAPI |
-| Frontend | React / Next.js |
-| Database | Real-time inventory DB |
-| AI Copilot | LLM with tool-use / RAG |
+| Frontend | React.js, Vite, Tailwind CSS, Framer Motion |
+| Camera Integration | HTML5 Camera API (getUserMedia), OpenCV |
+| Computer Vision | Multimodal Vision AI API |
+| Backend | Python, FastAPI |
+| Database | SQLite |
+| Recommendation Engine | Python, Pandas, NumPy, MLxtend (Apriori/FP-Growth) |
+| Demand Forecasting | Pandas, Scikit-learn |
+| AI Business Copilot | LLM API |
+| Dashboard & Analytics | Recharts |
+| Version Control | Git & GitHub |
 
 ---
 
@@ -102,11 +203,15 @@ The copilot analyzes live sales data and turns it into immediate, actionable adv
 git clone https://github.com/saikeerthanakavuri/CartAI.git
 cd CartAI
 
-# Install dependencies
+# Backend setup
+cd backend
 pip install -r requirements.txt
+uvicorn main:app --reload
 
-# Start the application
-python main.py
+# Frontend setup (in a new terminal)
+cd frontend
+npm install
+npm run dev
 ```
 
 > Detailed setup, environment variables, and deployment guides will be added as the project develops.
@@ -120,5 +225,5 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 <div align="center">
-  Built for the <strong>AI for Business Development</strong> track
+  Built for the <strong>AI & ML – Retail Business Intelligence</strong> track
 </div>
