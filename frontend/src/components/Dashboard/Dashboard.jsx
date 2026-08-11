@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AIChat from '../AIChat/AIChat'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   PRODUCTS as INITIAL_PRODUCTS,
   getTotalRevenue,
@@ -18,6 +19,7 @@ const card = {
 }
 
 export default function Dashboard({ onLogout }) {
+  const { user } = useAuth()
   const [products, setProducts] = useState(INITIAL_PRODUCTS)
   const [expandedSection, setExpandedSection] = useState(null)
   const [showNotification, setShowNotification] = useState(false)
@@ -88,7 +90,7 @@ export default function Dashboard({ onLogout }) {
         <div>
           <p className="text-black/40 text-xs font-light">Store Dashboard</p>
           <h2 className="text-black font-semibold text-base mt-0.5" style={{ letterSpacing: '-0.2px' }}>
-            shopkeeper@gmail.com
+            {user?.email || 'Loading...'}
           </h2>
         </div>
         <button

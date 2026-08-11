@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "firebase": "^12.17.1",
     "framer-motion": "^11.0.0",
     "qrcode.react": "^3.2.0",
     "react": "^18.3.1",
