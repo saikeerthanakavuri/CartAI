@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 const SHOPKEEPER_EMAIL = 'shopkeeper@gmail.com'
-const SHOPKEEPER_PASSWORD = 'cartai@2024'
+const SHOPKEEPER_PASSWORD = '1234'
 
 export default function ShopkeeperLogin({ onLogin, onBack }) {
   const [email, setEmail] = useState('')
@@ -11,84 +11,87 @@ export default function ShopkeeperLogin({ onLogin, onBack }) {
   const [loading, setLoading] = useState(false)
 
   const handleLogin = () => {
-    if (!email || !password) {
-      setError('Please fill in all fields')
-      return
-    }
-    if (email !== SHOPKEEPER_EMAIL) {
-      setError('Email not recognised')
-      return
-    }
-    if (password !== SHOPKEEPER_PASSWORD) {
-      setError('Incorrect password')
-      return
-    }
+    if (!email || !password) { setError('Please fill in all fields'); return }
+    if (email !== SHOPKEEPER_EMAIL) { setError('Email not recognised'); return }
+    if (password !== SHOPKEEPER_PASSWORD) { setError('Incorrect password'); return }
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      onLogin()
-    }, 1000)
+    setTimeout(() => { setLoading(false); onLogin() }, 1000)
+  }
+
+  const inputStyle = {
+    background: '#fff',
+    border: '1px solid rgba(0,0,0,0.1)',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
   }
 
   return (
-    <div
-      className="h-full w-full flex flex-col px-6 pt-10 pb-8"
-      style={{ background: 'linear-gradient(160deg, #0d2e1a 0%, #064e3b 100%)' }}
-    >
-      {/* Header */}
-      <button onClick={onBack} className="text-white/50 text-sm mb-6 text-left">
-        ← Back
+    <div className="h-full w-full flex flex-col px-6 pt-6 pb-8" style={{ background: '#f2f2f7' }}>
+
+      {/* Back */}
+      <button onClick={onBack} className="text-[#007aff] text-sm font-medium mb-6 text-left active:opacity-60">
+        ‹ Back
       </button>
 
+      {/* Header */}
       <div className="mb-8">
-        <span className="text-4xl">🏪</span>
-        <h2 className="text-white text-2xl font-bold mt-3">Shopkeeper Login</h2>
-        <p className="text-white/50 text-sm mt-1">Sign in with your store Gmail account</p>
-      </div>
-
-      {/* Email */}
-      <div className="bg-white/10 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
-        <span className="text-white/50">✉️</span>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Gmail address"
-          className="flex-1 bg-transparent text-white placeholder-white/30 outline-none text-base"
-        />
-      </div>
-
-      {/* Password */}
-      <div className="bg-white/10 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
-        <span className="text-white/50">🔒</span>
-        <input
-          type={showPassword ? 'text' : 'password'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className="flex-1 bg-transparent text-white placeholder-white/30 outline-none text-base"
-        />
-        <button
-          onClick={() => setShowPassword(!showPassword)}
-          className="text-white/40 text-xs"
+        <div
+          className="w-14 h-14 rounded-[16px] flex items-center justify-center text-3xl mb-4"
+          style={{ background: 'rgba(52,199,89,0.1)', border: '1px solid rgba(52,199,89,0.2)' }}
         >
-          {showPassword ? 'Hide' : 'Show'}
-        </button>
+          🏪
+        </div>
+        <h2 className="text-black text-2xl font-semibold" style={{ letterSpacing: '-0.4px' }}>
+          Shopkeeper Login
+        </h2>
+        <p className="text-black/40 text-sm mt-1.5 font-light">Sign in with your store Gmail account</p>
       </div>
 
-      {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
+      <div className="flex flex-col gap-2.5">
+        {/* Email */}
+        <div className="flex items-center rounded-[12px] px-4 py-3.5 gap-3" style={inputStyle}>
+          <span className="text-black/30 text-sm">✉️</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Gmail address"
+            className="flex-1 bg-transparent text-black placeholder-black/25 outline-none text-base font-light"
+          />
+        </div>
+
+        {/* Password */}
+        <div className="flex items-center rounded-[12px] px-4 py-3.5 gap-3" style={inputStyle}>
+          <span className="text-black/30 text-sm">🔒</span>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="flex-1 bg-transparent text-black placeholder-black/25 outline-none text-base font-light"
+          />
+          <button
+            onClick={() => setShowPassword(!showPassword)}
+            className="text-[#007aff] text-xs font-medium active:opacity-60"
+          >
+            {showPassword ? 'Hide' : 'Show'}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="text-[#ff3b30] text-xs mt-3 pl-1">{error}</p>}
 
       <button
         onClick={handleLogin}
         disabled={loading}
-        className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold text-base mt-2 active:scale-95 transition-transform disabled:opacity-60"
+        className="w-full py-3.5 rounded-[12px] text-white font-semibold text-base mt-5 active:scale-[0.98] transition-transform disabled:opacity-50"
+        style={{ background: '#34c759' }}
       >
-        {loading ? 'Signing in...' : 'Sign In'}
+        {loading ? 'Signing in…' : 'Sign In'}
       </button>
 
-      <p className="text-white/25 text-xs text-center mt-auto">
-        Demo credentials: shopkeeper@gmail.com / cartai@2024
+      <p className="text-black/20 text-xs text-center mt-auto font-light">
+        Demo: shopkeeper@gmail.com / 1234
       </p>
     </div>
   )

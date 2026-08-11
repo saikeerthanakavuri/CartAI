@@ -1,59 +1,95 @@
-// Shopkeeper Dashboard — analytics, inventory, AI copilot
-// Full implementation: charts, alerts, copilot chat
+// iOS 18 light — Shopkeeper Dashboard
 export default function Dashboard({ onLogout }) {
   const stats = [
-    { label: "Today's Revenue", value: '₹4,280', icon: '💰', color: 'from-emerald-500 to-teal-600' },
-    { label: 'Items Sold', value: '142', icon: '📦', color: 'from-violet-500 to-indigo-600' },
-    { label: 'Low Stock', value: '3', icon: '⚠️', color: 'from-orange-500 to-red-500' },
-    { label: 'Customers', value: '38', icon: '👥', color: 'from-blue-500 to-cyan-500' },
+    { label: 'Revenue',    value: '₹4,280', sub: 'Today',  icon: '💰', accent: '#34c759' },
+    { label: 'Items Sold', value: '142',    sub: 'Today',  icon: '📦', accent: '#007aff' },
+    { label: 'Low Stock',  value: '3',      sub: 'Alerts', icon: '⚠️', accent: '#ff9500' },
+    { label: 'Customers',  value: '38',     sub: 'Visits', icon: '👥', accent: '#af52de' },
   ]
 
   const lowStock = [
-    { name: 'Lays Classic', stock: 4, unit: 'packs' },
-    { name: 'Coca-Cola 2L', stock: 2, unit: 'bottles' },
-    { name: 'Bread Loaf', stock: 3, unit: 'loaves' },
+    { name: 'Lays Classic',  stock: 4, unit: 'packs' },
+    { name: 'Coca-Cola 2L',  stock: 2, unit: 'bottles' },
+    { name: 'Bread Loaf',    stock: 3, unit: 'loaves' },
   ]
 
+  const card = {
+    background: '#fff',
+    borderRadius: 16,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    border: '1px solid rgba(0,0,0,0.05)',
+  }
+
   return (
-    <div
-      className="h-full w-full flex flex-col overflow-y-auto"
-      style={{ background: 'linear-gradient(160deg, #0d2e1a 0%, #064e3b 100%)' }}
-    >
-      <div className="px-5 pt-6 pb-4 flex items-center justify-between sticky top-0 z-10"
-        style={{ background: 'rgba(6,78,59,0.95)', backdropFilter: 'blur(10px)' }}>
+    <div className="h-full w-full flex flex-col overflow-y-auto" style={{ background: '#f2f2f7' }}>
+
+      {/* Sticky header */}
+      <div
+        className="px-5 pt-4 pb-3 flex items-center justify-between sticky top-0 z-10"
+        style={{
+          background: 'rgba(242,242,247,0.92)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(0,0,0,0.08)',
+        }}
+      >
         <div>
-          <p className="text-white/50 text-xs">Logged in as</p>
-          <h2 className="text-white font-bold text-base">shopkeeper@gmail.com</h2>
+          <p className="text-black/40 text-xs font-light">Store Dashboard</p>
+          <h2 className="text-black font-semibold text-base mt-0.5" style={{ letterSpacing: '-0.2px' }}>
+            shopkeeper@gmail.com
+          </h2>
         </div>
         <button
           onClick={onLogout}
-          className="text-white/40 text-xs bg-white/10 px-3 py-1.5 rounded-full"
+          className="text-[#ff3b30] text-sm font-medium px-3.5 py-1.5 rounded-full active:opacity-70"
+          style={{ background: 'rgba(255,59,48,0.1)' }}
         >
-          Logout
+          Sign Out
         </button>
       </div>
 
-      <div className="px-5 pb-8">
+      <div className="px-4 pb-10 pt-4">
+
         {/* Stats grid */}
-        <div className="grid grid-cols-2 gap-3 mb-5 mt-2">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           {stats.map((s) => (
-            <div key={s.label} className={`rounded-2xl p-4 bg-gradient-to-br ${s.color}`}>
-              <span className="text-2xl">{s.icon}</span>
-              <p className="text-white text-xl font-bold mt-1">{s.value}</p>
-              <p className="text-white/70 text-xs">{s.label}</p>
+            <div key={s.label} className="p-4" style={card}>
+              <div
+                className="w-9 h-9 rounded-[10px] flex items-center justify-center text-lg mb-3"
+                style={{ background: `${s.accent}18` }}
+              >
+                {s.icon}
+              </div>
+              <p className="text-black text-2xl font-bold" style={{ letterSpacing: '-0.5px' }}>
+                {s.value}
+              </p>
+              <p className="text-black/40 text-xs mt-0.5 font-light">{s.sub} · {s.label}</p>
             </div>
           ))}
         </div>
 
-        {/* Low stock alerts */}
-        <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-4">
-          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-            <span>⚠️</span> Low Stock Alerts
+        {/* Low stock */}
+        <div className="p-4 mb-4" style={card}>
+          <h3 className="text-black font-semibold text-sm mb-3 flex items-center gap-2">
+            <span
+              className="w-6 h-6 rounded-md flex items-center justify-center text-xs"
+              style={{ background: 'rgba(255,149,0,0.15)' }}
+            >
+              ⚠️
+            </span>
+            Low Stock Alerts
           </h3>
-          {lowStock.map((item) => (
-            <div key={item.name} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
-              <span className="text-white/80 text-sm">{item.name}</span>
-              <span className="text-orange-400 text-xs font-medium">
+          {lowStock.map((item, i) => (
+            <div
+              key={item.name}
+              className="flex justify-between items-center py-2.5"
+              style={{ borderBottom: i < lowStock.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}
+            >
+              <span className="text-black/80 text-sm font-light">{item.name}</span>
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded-full"
+                style={{ background: 'rgba(255,149,0,0.12)', color: '#ff9500' }}
+              >
                 {item.stock} {item.unit} left
               </span>
             </div>
@@ -61,22 +97,38 @@ export default function Dashboard({ onLogout }) {
         </div>
 
         {/* AI Copilot */}
-        <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-            <span>💬</span> AI Business Copilot
+        <div className="p-4" style={card}>
+          <h3 className="text-black font-semibold text-sm mb-3 flex items-center gap-2">
+            <span
+              className="w-6 h-6 rounded-md flex items-center justify-center text-xs"
+              style={{ background: 'rgba(0,122,255,0.12)' }}
+            >
+              ✨
+            </span>
+            AI Business Copilot
           </h3>
-          <div className="bg-emerald-900/40 rounded-xl p-3 mb-3 border border-emerald-500/20">
-            <p className="text-emerald-300 text-xs">
-              💡 Sodas are selling 3× faster than usual. Reorder 2 cases now to avoid losing ₹450 in sales.
+
+          <div
+            className="rounded-[12px] p-3 mb-3"
+            style={{ background: 'rgba(0,122,255,0.06)', border: '1px solid rgba(0,122,255,0.12)' }}
+          >
+            <p className="text-black/60 text-xs font-light leading-relaxed">
+              💡 Sodas are selling 3× faster than usual. Reorder 2 cases now to avoid losing{' '}
+              <span style={{ color: '#007aff', fontWeight: 500 }}>₹450 in sales</span>.
             </p>
           </div>
+
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Ask anything about your store..."
-              className="flex-1 bg-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-white/30 outline-none"
+              placeholder="Ask about your store…"
+              className="flex-1 rounded-[10px] px-3 py-2.5 text-black text-xs font-light placeholder-black/25 outline-none"
+              style={{ background: '#f2f2f7', border: '1px solid rgba(0,0,0,0.08)' }}
             />
-            <button className="bg-emerald-600 text-white rounded-xl px-3 py-2 text-xs font-medium active:scale-95 transition-transform">
+            <button
+              className="text-white text-xs font-semibold rounded-[10px] px-4 py-2.5 active:scale-95 transition-transform"
+              style={{ background: '#007aff' }}
+            >
               Ask
             </button>
           </div>

@@ -48,18 +48,19 @@ export default function App() {
         return (
           <Cart
             customer={customer}
-            onLogout={() => navigate('home')}
+            onLogout={() => navigate('login-selector')}
           />
         )
       case 'dashboard':
-        return <Dashboard onLogout={() => navigate('home')} />
+        return <Dashboard onLogout={() => navigate('login-selector')} />
       default:
         return <HomeScreen onOpenApp={() => navigate('login-selector')} />
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center py-10"
+      style={{ background: 'linear-gradient(135deg, #e8eaf0 0%, #d0d4de 100%)' }}>
       <MobileFrame>
         {renderScreen()}
       </MobileFrame>
