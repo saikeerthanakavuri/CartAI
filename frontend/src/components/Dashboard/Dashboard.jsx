@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AIChat from '../AIChat/AIChat'
 import {
   PRODUCTS as INITIAL_PRODUCTS,
@@ -20,6 +20,17 @@ const card = {
 export default function Dashboard({ onLogout }) {
   const [products, setProducts] = useState(INITIAL_PRODUCTS)
   const [expandedSection, setExpandedSection] = useState(null)
+  const [showNotification, setShowNotification] = useState(false)
+
+  // Show iOS notification after login
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowNotification(true)
+      // Auto hide after 5 seconds
+      setTimeout(() => setShowNotification(false), 5000)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [])
 
   const toggleSection = (section) => {
     setExpandedSection(expandedSection === section ? null : section)
@@ -30,7 +41,40 @@ export default function Dashboard({ onLogout }) {
   const topSellers = [...products].sort((a, b) => b.soldToday - a.soldToday).slice(0, 5)
 
   return (
-    <div className="h-full w-full flex flex-col" style={{ background: '#f2f2f7' }}>
+    <div className="h-full w-full flex flex-col relative" style={{ background: '#f2f2f7' }}>
+      {/* iOS WhatsApp Notification */}
+      {showNotification && (
+        <div
+          className="absolute top-2 left-4 right-4 z-50 animate-slide-down"
+          onClick={() => setShowNotification(false)}
+        >
+          <div
+            className="rounded-[18px] p-3 flex items-start gap-3 shadow-2xl backdrop-blur-xl"
+            style={{
+              background: 'rgba(255,255,255,0.95)',
+              border: '1px solid rgba(0,0,0,0.08)',
+            }}
+          >
+            <div
+              className="w-10 h-10 rounded-[10px] flex items-center justify-center text-lg shrink-0"
+              style={{ background: '#25d366' }}
+            >
+              💬
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-0.5">
+                <p className="text-black font-semibold text-xs">WhatsApp</p>
+                <p className="text-black/40 text-[10px]">now</p>
+              </div>
+              <p className="text-black/60 text-[11px] font-medium mb-0.5">CartAI Store Assistant</p>
+              <p className="text-black text-xs leading-snug">
+                🚨 Critical: Coca-Cola 2L down to 2 bottles! Restock now to avoid ₹1,400 loss today.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div
         className="px-5 pt-4 pb-3 flex items-center justify-between shrink-0"
@@ -76,7 +120,14 @@ export default function Dashboard({ onLogout }) {
           </div>
         </div>
 
-        {/* 2. Top Selling Products */}
+        {/* 2. Calendar - Earnings Tracker */}
+        <CalendarSection
+          products={products}
+          expanded={expandedSection === 'calendar'}
+          onToggle={() => toggleSection('calendar')}
+        />
+
+        {/* 3. Top Selling Products */}
         <SectionBar
           title="Top Selling Products"
           icon="🏆"
@@ -137,6 +188,12 @@ export default function Dashboard({ onLogout }) {
           expanded={expandedSection === 'products'}
           onToggle={() => toggleSection('products')}
         />
+
+        {/* 6. WhatsApp Alerts */}
+        <WhatsAppAlertsSection
+          expanded={expandedSection === 'whatsapp'}
+          onToggle={() => toggleSection('whatsapp')}
+        />
       </div>
 
       {/* AI Chat */}
@@ -148,10 +205,10 @@ export default function Dashboard({ onLogout }) {
 // Collapsible section bar component
 function SectionBar({ title, icon, count, expanded, onToggle, children }) {
   return (
-    <div className="mb-3">
+    <div className="mb-3 animate-fade-in">
       <button
         onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between active:opacity-70 transition-opacity"
+        className="w-full p-4 flex items-center justify-between active:opacity-70 transition-all duration-200"
         style={card}
       >
         <div className="flex items-center gap-3">
@@ -163,16 +220,239 @@ function SectionBar({ title, icon, count, expanded, onToggle, children }) {
             )}
           </div>
         </div>
-        <span className="text-black/30 text-lg transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)' }}>
+        <span 
+          className="text-black/30 text-lg transition-transform duration-300" 
+          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)' }}
+        >
           ▼
         </span>
       </button>
       {expanded && (
-        <div className="px-4 pb-4 pt-0" style={{ ...card, marginTop: -12, paddingTop: 12, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+        <div 
+          className="px-4 pb-4 pt-0 animate-slide-down" 
+          style={{ ...card, marginTop: -12, paddingTop: 12, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+        >
           {children}
         </div>
       )}
     </div>
+  )
+}
+
+// Calendar Earnings Tracker Section
+function CalendarSection({ products, expanded, onToggle }) {
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [showDayDetail, setShowDayDetail] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(null)
+  
+  // Generate dummy earnings data for the month
+  const generateMonthData = () => {
+    const data = {}
+    const today = new Date()
+    const currentMonth = today.getMonth()
+    const currentYear = today.getFullYear()
+    
+    // Generate random earnings for each day of current month
+    for (let day = 1; day <= new Date(currentYear, currentMonth + 1, 0).getDate(); day++) {
+      const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      // Random earnings between 2000-6000
+      const revenue = Math.floor(2000 + Math.random() * 4000)
+      const orders = Math.floor(15 + Math.random() * 25)
+      const profit = Math.floor(revenue * 0.25) // 25% profit margin
+      data[dateKey] = { revenue, orders, profit }
+    }
+    return data
+  }
+
+  const [earningsData] = useState(generateMonthData())
+  
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1).getDay()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    return { firstDay, daysInMonth, year, month }
+  }
+
+  const { firstDay, daysInMonth, year, month } = getDaysInMonth(selectedDate)
+  
+  const getDateKey = (day) => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  const getEarningLevel = (amount) => {
+    if (!amount) return 'none'
+    if (amount < 2500) return 'low'
+    if (amount < 4000) return 'medium'
+    return 'high'
+  }
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  
+  const totalMonthEarnings = Object.values(earningsData).reduce((sum, val) => sum + val.revenue, 0)
+  const avgDailyEarnings = Math.floor(totalMonthEarnings / daysInMonth)
+
+  const handleDayClick = (day) => {
+    setSelectedDay(day)
+    setShowDayDetail(true)
+  }
+
+  return (
+    <SectionBar
+      title="Earnings Calendar"
+      icon="📅"
+      expanded={expanded}
+      onToggle={onToggle}
+    >
+      <div className="mt-3">
+        {/* Month stats */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="p-3 rounded-[12px]" style={{ background: '#f2f2f7' }}>
+            <p className="text-black/40 text-[10px]">This Month</p>
+            <p className="text-black text-lg font-bold">₹{totalMonthEarnings.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="p-3 rounded-[12px]" style={{ background: '#f2f2f7' }}>
+            <p className="text-black/40 text-[10px]">Daily Average</p>
+            <p className="text-black text-lg font-bold">₹{avgDailyEarnings.toLocaleString('en-IN')}</p>
+          </div>
+        </div>
+
+        {/* Calendar header */}
+        <div className="mb-2">
+          <p className="text-black font-semibold text-sm text-center">{monthNames[month]} {year}</p>
+        </div>
+
+        {/* Days of week */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+            <div key={i} className="text-center text-black/40 text-[10px] font-medium py-1">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-1">
+          {/* Empty cells for days before month starts */}
+          {Array.from({ length: firstDay }).map((_, i) => (
+            <div key={`empty-${i}`} className="aspect-square" />
+          ))}
+          
+          {/* Days of month */}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1
+            const dateKey = getDateKey(day)
+            const dayData = earningsData[dateKey]
+            const earnings = dayData?.revenue || 0
+            const level = getEarningLevel(earnings)
+            const isToday = day === new Date().getDate() && month === new Date().getMonth()
+            
+            const levelColors = {
+              none: 'rgba(0,0,0,0.05)',
+              low: 'rgba(255,149,0,0.3)',
+              medium: 'rgba(52,199,89,0.5)',
+              high: 'rgba(52,199,89,0.9)',
+            }
+
+            return (
+              <button
+                key={day}
+                onClick={() => handleDayClick(day)}
+                className="aspect-square rounded-[8px] flex flex-col items-center justify-center text-[10px] font-medium active:scale-95 transition-transform relative"
+                style={{
+                  background: levelColors[level],
+                  border: isToday ? '2px solid #007aff' : 'none',
+                }}
+              >
+                <span className={isToday ? 'text-[#007aff] font-bold' : 'text-black'}>{day}</span>
+                {earnings && (
+                  <span className="text-[8px] text-black/60 mt-0.5">
+                    {earnings > 999 ? `${Math.floor(earnings / 1000)}k` : earnings}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-3 mt-3">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded" style={{ background: 'rgba(255,149,0,0.3)' }} />
+            <span className="text-[10px] text-black/50">Low</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded" style={{ background: 'rgba(52,199,89,0.5)' }} />
+            <span className="text-[10px] text-black/50">Medium</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded" style={{ background: 'rgba(52,199,89,0.9)' }} />
+            <span className="text-[10px] text-black/50">High</span>
+          </div>
+        </div>
+
+        {/* Day Detail Modal */}
+        {showDayDetail && selectedDay && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowDayDetail(false)}
+          >
+            <div
+              className="bg-white rounded-[20px] p-5 w-[280px] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-black font-semibold text-base">
+                  {monthNames[month]} {selectedDay}, {year}
+                </h3>
+                <button
+                  onClick={() => setShowDayDetail(false)}
+                  className="text-black/40 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {earningsData[getDateKey(selectedDay)] ? (
+                <div className="flex flex-col gap-3">
+                  <div className="p-3 rounded-[12px]" style={{ background: '#f2f2f7' }}>
+                    <p className="text-black/40 text-xs mb-1">Revenue</p>
+                    <p className="text-black text-2xl font-bold">
+                      ₹{earningsData[getDateKey(selectedDay)].revenue.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-3 rounded-[12px]" style={{ background: '#f2f2f7' }}>
+                      <p className="text-black/40 text-[10px] mb-1">Orders</p>
+                      <p className="text-black text-lg font-bold">
+                        {earningsData[getDateKey(selectedDay)].orders}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-[12px]" style={{ background: '#f2f2f7' }}>
+                      <p className="text-black/40 text-[10px] mb-1">Profit</p>
+                      <p className="text-black text-lg font-bold">
+                        ₹{earningsData[getDateKey(selectedDay)].profit.toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowDayDetail(false)}
+                    className="w-full py-2.5 rounded-[12px] text-white font-semibold text-sm"
+                    style={{ background: '#007aff' }}
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <p className="text-black/40 text-sm text-center py-4">No data for this day</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </SectionBar>
   )
 }
 
@@ -548,6 +828,7 @@ function AddSaleSection({ products, setProducts, expanded, onToggle }) {
 // Products List Section
 function ProductsListSection({ products, setProducts, expanded, onToggle }) {
   const [adding, setAdding] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [newProduct, setNewProduct] = useState({
     name: '',
     category: '',
@@ -558,6 +839,11 @@ function ProductsListSection({ products, setProducts, expanded, onToggle }) {
     unit: '',
     expiryDate: '',
   })
+
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const addProduct = () => {
     if (newProduct.name && newProduct.sellPrice && newProduct.stock) {
@@ -606,6 +892,18 @@ function ProductsListSection({ products, setProducts, expanded, onToggle }) {
         >
           {adding ? 'Cancel' : '+ Add New Product'}
         </button>
+
+        {/* Search bar */}
+        <div className="mb-3">
+          <input
+            type="text"
+            placeholder="🔍 Search products..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full p-2.5 rounded-[10px] text-xs outline-none"
+            style={{ background: '#f2f2f7', border: '1px solid rgba(0,0,0,0.08)' }}
+          />
+        </div>
 
         {adding && (
           <div className="flex flex-col gap-2 mb-3 p-3 rounded-[12px]" style={{ background: '#f2f2f7' }}>
@@ -680,7 +978,10 @@ function ProductsListSection({ products, setProducts, expanded, onToggle }) {
         )}
 
         <div className="flex flex-col gap-2">
-          {products.map((p) => (
+          {filteredProducts.length === 0 ? (
+            <p className="text-black/40 text-xs text-center py-4">No products found</p>
+          ) : (
+            filteredProducts.map((p) => (
             <div
               key={p.id}
               className="p-3 rounded-[12px]"
@@ -705,9 +1006,135 @@ function ProductsListSection({ products, setProducts, expanded, onToggle }) {
                 </span>
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
       </div>
     </SectionBar>
+  )
+}
+
+// WhatsApp Alerts Section
+function WhatsAppAlertsSection({ expanded, onToggle }) {
+  return (
+    <SectionBar
+      title="WhatsApp Alerts"
+      icon="💬"
+      expanded={expanded}
+      onToggle={onToggle}
+    >
+      <div className="mt-3">
+        <WhatsAppSettings />
+      </div>
+    </SectionBar>
+  )
+}
+
+// WhatsApp Settings Component
+function WhatsAppSettings() {
+  const [enabled, setEnabled] = useState(true)
+  const [phone, setPhone] = useState('+91 98765 43210')
+  const [editingPhone, setEditingPhone] = useState(false)
+  const [tempPhone, setTempPhone] = useState(phone)
+
+  const alertTypes = [
+    { id: 'critical', label: 'Critical Stock Alerts', icon: '🚨', on: true },
+    { id: 'daily', label: 'Daily Sales Summary', icon: '📊', on: true },
+    { id: 'expiry', label: 'Expiry Reminders', icon: '📅', on: false },
+  ]
+
+  const [toggles, setToggles] = useState(
+    Object.fromEntries(alertTypes.map((a) => [a.id, a.on]))
+  )
+
+  return (
+    <div>
+      <p className="text-black font-semibold text-sm mb-3">💬 WhatsApp Alerts</p>
+      
+      {/* Master toggle */}
+      <div className="flex items-center justify-between p-3 rounded-[12px] mb-3" style={{ background: '#f2f2f7' }}>
+        <div>
+          <p className="text-black text-xs font-medium">Enable WhatsApp Notifications</p>
+          <p className="text-black/40 text-[10px]">{enabled ? 'Active' : 'Disabled'}</p>
+        </div>
+        <button
+          onClick={() => setEnabled(!enabled)}
+          className="w-12 h-7 rounded-full relative transition-colors duration-200"
+          style={{ background: enabled ? '#34c759' : 'rgba(0,0,0,0.15)' }}
+        >
+          <span
+            className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-200"
+            style={{ left: enabled ? '22px' : '2px' }}
+          />
+        </button>
+      </div>
+
+      {/* Phone number */}
+      <div className="p-3 rounded-[12px] mb-3" style={{ background: '#f2f2f7' }}>
+        <p className="text-black/40 text-[10px] font-medium mb-2">PHONE NUMBER</p>
+        {editingPhone ? (
+          <div className="flex gap-2">
+            <input
+              type="tel"
+              value={tempPhone}
+              onChange={(e) => setTempPhone(e.target.value)}
+              className="flex-1 text-xs text-black outline-none rounded-[8px] px-3 py-2"
+              style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.1)' }}
+              autoFocus
+            />
+            <button
+              onClick={() => { setPhone(tempPhone); setEditingPhone(false) }}
+              className="text-white text-xs font-semibold px-3 py-2 rounded-[8px]"
+              style={{ background: '#007aff' }}
+            >
+              Save
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📱</span>
+              <p className="text-black font-medium text-xs">{phone}</p>
+            </div>
+            <button
+              onClick={() => { setTempPhone(phone); setEditingPhone(true) }}
+              className="text-[#007aff] text-xs font-medium active:opacity-60"
+            >
+              Edit
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Alert types */}
+      <div className="flex flex-col gap-2">
+        {alertTypes.map((a) => (
+          <div
+            key={a.id}
+            className="flex items-center justify-between p-3 rounded-[12px]"
+            style={{ background: '#f2f2f7' }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{a.icon}</span>
+              <p className="text-black text-xs font-medium">{a.label}</p>
+            </div>
+            <button
+              onClick={() => setToggles((t) => ({ ...t, [a.id]: !t[a.id] }))}
+              disabled={!enabled}
+              className="w-10 h-6 rounded-full relative transition-colors duration-200"
+              style={{
+                background: enabled && toggles[a.id] ? '#007aff' : 'rgba(0,0,0,0.15)',
+                opacity: enabled ? 1 : 0.4,
+              }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200"
+                style={{ left: enabled && toggles[a.id] ? '18px' : '2px' }}
+              />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
