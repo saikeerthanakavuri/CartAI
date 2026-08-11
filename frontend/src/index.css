@@ -18,3 +18,13 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+@keyframes scanSweep {
+  0%   { top: 10%; }
+  50%  { top: 88%; }
+  100% { top: 10%; }
+}
+
+.scan-line {
+  animation: scanSweep 2s ease-in-out infinite;
+}
