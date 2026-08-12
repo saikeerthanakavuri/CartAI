@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Checkout from '../Checkout/Checkout'
+import CustomerAI from '../CustomerAI/CustomerAI'
 
 // ── Mock product database ─────────────────────────────────────────
 const MOCK_PRODUCTS = [
@@ -14,6 +15,50 @@ const MOCK_PRODUCTS = [
   { id: 8, name: "Hide & Seek",     variant: "Chocolate Cookies · 75g", price: 25, emoji: "🍪" },
   { id: 9, name: "Hajmola",         variant: "Digestive Candy · 20pc",  price: 10, emoji: "🍬" },
   { id: 10, name: "Amul Butter",    variant: "Pasteurised · 100g",      price: 55, emoji: "🧈" },
+]
+
+// ── Active offers / deals ────────────────────────────────────────────
+const OFFERS = [
+  {
+    id: 'o1',
+    title: 'Combo Deal 🔥',
+    description: 'Buy Lays + Coca-Cola together',
+    discount: 'Save ₹10',
+    tag: 'HOT',
+    color: '#ff3b30',
+    bg: 'linear-gradient(135deg, #fff1f0 0%, #ffe4e2 100%)',
+    border: 'rgba(255,59,48,0.2)',
+  },
+  {
+    id: 'o2',
+    title: 'Happy Hours ⚡',
+    description: '3 PM – 5 PM · 15% off all Beverages',
+    discount: '15% OFF',
+    tag: 'TODAY',
+    color: '#007aff',
+    bg: 'linear-gradient(135deg, #f0f6ff 0%, #ddeeff 100%)',
+    border: 'rgba(0,122,255,0.2)',
+  },
+  {
+    id: 'o3',
+    title: 'Snack Bundle 🍫',
+    description: 'Any 3 Snacks for just ₹55',
+    discount: '₹55 Bundle',
+    tag: 'LIMITED',
+    color: '#ff9500',
+    bg: 'linear-gradient(135deg, #fff9f0 0%, #ffefd6 100%)',
+    border: 'rgba(255,149,0,0.2)',
+  },
+  {
+    id: 'o4',
+    title: 'Fresh Pick 🍞',
+    description: 'Bread + Amul Butter combo',
+    discount: 'Save ₹15',
+    tag: 'FRESH',
+    color: '#34c759',
+    bg: 'linear-gradient(135deg, #f0fff4 0%, #d6f5e0 100%)',
+    border: 'rgba(52,199,89,0.2)',
+  },
 ]
 
 // ── Recommendation map (product id → suggested product id + reason) ─
@@ -67,6 +112,22 @@ export default function Cart({ customer, onLogout }) {
   const [cartItems,   setCartItems]   = useState([])
   const [showCheckout, setShowCheckout] = useState(false)
 
+  // Offers
+  const [claimedOffers, setClaimedOffers] = useState(new Set())
+
+  // Manual select fallback
+  const [showManualSelect, setShowManualSelect] = useState(false)
+
+  const claimOffer = useCallback((offerId) => {
+    setClaimedOffers(prev => new Set([...prev, offerId]))
+  }, [])
+
+  // Manual product selection (fallback when camera doesn't work)
+  const selectManualProduct = useCallback((product) => {
+    setIdentified({ ...product, confidence: '100.0' })
+    setShowManualSelect(false)
+  }, [])
+
   const videoRef  = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
@@ -80,23 +141,46 @@ export default function Cart({ customer, onLogout }) {
 
   // ── Camera ────────────────────────────────────────────────────
   const openCamera = useCallback(async () => {
+    console.log('🎥 Opening camera...')
     setCameraError('')
     setCaptured(null)
     setIdentified(null)
+    
+    // Check if getUserMedia is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('❌ getUserMedia not supported')
+      setCameraError('Camera not supported in this browser. Please use Chrome, Firefox, or Safari.')
+      return
+    }
+    
     try {
+      console.log('📱 Requesting camera access...')
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       })
+      console.log('✅ Camera access granted!', stream.getTracks())
       streamRef.current = stream
       setCameraActive(true)
       requestAnimationFrame(() => {
-        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play() }
+        if (videoRef.current) { 
+          videoRef.current.srcObject = stream
+          videoRef.current.play()
+            .then(() => console.log('✅ Video playing'))
+            .catch(err => console.error('❌ Video play error:', err))
+        }
       })
     } catch (err) {
-      if (err.name === 'NotAllowedError') setCameraError('Camera permission denied. Please allow camera access and try again.')
-      else if (err.name === 'NotFoundError') setCameraError('No camera found on this device.')
-      else setCameraError('Could not access camera: ' + err.message)
+      console.error('❌ Camera error:', err)
+      if (err.name === 'NotAllowedError') {
+        setCameraError('Camera permission denied. Click the camera icon in the address bar and select "Allow".')
+      } else if (err.name === 'NotFoundError') {
+        setCameraError('No camera found on this device. Make sure your webcam is connected.')
+      } else if (err.name === 'NotReadableError') {
+        setCameraError('Camera is already in use by another application. Close other apps and try again.')
+      } else {
+        setCameraError('Could not access camera: ' + err.message)
+      }
     }
   }, [])
 
@@ -191,7 +275,7 @@ export default function Cart({ customer, onLogout }) {
   }, [])
 
   return (
-    <div className="h-full w-full flex flex-col px-5 pt-5 pb-5" style={{ background: '#f2f2f7' }}>
+    <div className="relative h-full w-full flex flex-col px-5 pt-5 pb-5" style={{ background: '#f2f2f7' }}>
 
       {/* ── Checkout screen overlay ── */}
       <AnimatePresence>
@@ -308,15 +392,63 @@ export default function Cart({ customer, onLogout }) {
               Point your camera at any product to identify it and add to cart
             </p>
             {cameraError && (
-              <p className="text-[#ff3b30] text-xs text-center px-2 leading-relaxed">{cameraError}</p>
+              <p className="text-[#ff3b30] text-xs text-center px-2 leading-relaxed mb-2">{cameraError}</p>
             )}
-            <button
-              onClick={openCamera}
-              className="mt-1 px-7 py-2.5 rounded-[10px] text-white text-sm font-semibold active:scale-95 transition-transform"
-              style={{ background: '#007aff' }}
-            >
-              Open Camera
-            </button>
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={openCamera}
+                className="flex-1 px-7 py-2.5 rounded-[10px] text-white text-sm font-semibold active:scale-95 transition-transform"
+                style={{ background: '#007aff' }}
+              >
+                Open Camera
+              </button>
+              <button
+                onClick={() => setShowManualSelect(true)}
+                className="px-4 py-2.5 rounded-[10px] text-sm font-semibold active:scale-95 transition-transform"
+                style={{ background: '#f2f2f7', color: '#007aff' }}
+                title="Select product manually (camera not working?)"
+              >
+                ⚡ Quick Pick
+              </button>
+            </div>
+            <p className="text-black/25 text-[10px] text-center mt-2 font-light">
+              Camera not working? Use Quick Pick
+            </p>
+          </div>
+        )}
+
+        {/* Manual product selector */}
+        {showManualSelect && !cameraActive && !captured && (
+          <div className="flex-1 flex flex-col overflow-y-auto p-4" style={{ borderRadius: 20 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-black font-semibold text-sm">Quick Pick Product</p>
+              <button
+                onClick={() => setShowManualSelect(false)}
+                className="text-black/40 text-xs font-medium"
+              >
+                ✕ Cancel
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {MOCK_PRODUCTS.map(product => (
+                <button
+                  key={product.id}
+                  onClick={() => selectManualProduct(product)}
+                  className="flex items-center gap-3 p-3 rounded-[12px] active:scale-98 transition-transform text-left"
+                  style={{ background: '#f2f2f7', border: '1px solid rgba(0,0,0,0.06)' }}
+                >
+                  <div className="w-12 h-12 rounded-[10px] flex items-center justify-center text-2xl flex-shrink-0"
+                    style={{ background: 'rgba(0,122,255,0.08)' }}>
+                    {product.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-black font-semibold text-sm leading-tight">{product.name}</p>
+                    <p className="text-black/40 text-[10px] mt-0.5 font-light">{product.variant}</p>
+                  </div>
+                  <p className="text-[#007aff] font-bold text-sm">₹{product.price}</p>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -443,6 +575,90 @@ export default function Cart({ customer, onLogout }) {
       {/* Hidden canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
+      {/* ── Offers strip ── */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-2 px-0.5">
+          <span className="text-black font-semibold text-sm">🎁 Offers for You</span>
+          <span className="text-xs font-medium" style={{ color: '#007aff' }}>
+            {OFFERS.length - claimedOffers.size} active
+          </span>
+        </div>
+        <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {OFFERS.map(offer => {
+            const claimed = claimedOffers.has(offer.id)
+            return (
+              <motion.div
+                key={offer.id}
+                className="flex-shrink-0 rounded-[14px] p-3 flex flex-col justify-between"
+                style={{
+                  width: 148,
+                  minHeight: 102,
+                  background: claimed ? '#f2f2f7' : offer.bg,
+                  border: `1px solid ${claimed ? 'rgba(0,0,0,0.07)' : offer.border}`,
+                  opacity: claimed ? 0.6 : 1,
+                  boxShadow: claimed ? 'none' : '0 2px 10px rgba(0,0,0,0.06)',
+                }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: claimed ? 0.6 : 1, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              >
+                {/* Top row — tag + discount badge */}
+                <div className="flex items-start justify-between gap-1 mb-1.5">
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: claimed ? 'rgba(0,0,0,0.06)' : `${offer.color}1a`,
+                      color: claimed ? 'rgba(0,0,0,0.3)' : offer.color,
+                      letterSpacing: '0.4px',
+                    }}
+                  >
+                    {claimed ? 'CLAIMED' : offer.tag}
+                  </span>
+                  <span
+                    className="text-[10px] font-bold"
+                    style={{ color: claimed ? 'rgba(0,0,0,0.3)' : offer.color }}
+                  >
+                    {offer.discount}
+                  </span>
+                </div>
+
+                {/* Title */}
+                <p
+                  className="text-[11px] font-semibold leading-tight"
+                  style={{ color: claimed ? 'rgba(0,0,0,0.35)' : '#1c1c1e' }}
+                >
+                  {offer.title}
+                </p>
+
+                {/* Description */}
+                <p
+                  className="text-[10px] font-light leading-snug mt-0.5 flex-1"
+                  style={{ color: claimed ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.5)' }}
+                >
+                  {offer.description}
+                </p>
+
+                {/* Claim button */}
+                <button
+                  onClick={() => !claimed && claimOffer(offer.id)}
+                  disabled={claimed}
+                  className="mt-2 w-full py-1 rounded-[7px] text-[10px] font-semibold transition-all active:scale-95"
+                  style={{
+                    background: claimed
+                      ? 'rgba(0,0,0,0.05)'
+                      : offer.color,
+                    color: claimed ? 'rgba(0,0,0,0.3)' : '#fff',
+                    cursor: claimed ? 'default' : 'pointer',
+                  }}
+                >
+                  {claimed ? '✓ Claimed' : 'Claim Offer'}
+                </button>
+              </motion.div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* ── Cart summary ── */}
       <div className="p-4" style={card}>
         <div className="flex justify-between items-center mb-2">
@@ -524,6 +740,9 @@ export default function Cart({ customer, onLogout }) {
           Checkout &amp; Get QR Code
         </button>
       </div>
+
+      {/* ── Customer AI Assistant ── */}
+      <CustomerAI cartItems={cartItems} />
     </div>
   )
 }
