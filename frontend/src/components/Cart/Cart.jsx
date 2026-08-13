@@ -80,17 +80,15 @@ const FALLBACK_PRODUCTS = [
 // ── Active offers / deals — loaded from shared store ────────────────────────────────
 
 // ── Recommendation map (product id → suggested product id + reason) ─
+// Based on actual products: 1=Lays, 2=Coca-Cola, 3=Bread, 4=Maggi, 5=Dairy Milk, 6=Parle-G, 7=Amul Milk
 const RECOMMENDATIONS = {
-  1:  { toId: 2,  reason: "🔥 87% of customers buy Coca-Cola with Lays!" },
-  2:  { toId: 1,  reason: "🔥 Lays pairs perfectly with Coca-Cola!" },
-  3:  { toId: 8,  reason: "🍫 Chocolate lovers also grab Hide & Seek cookies!" },
-  4:  { toId: 10, reason: "🧈 Add Amul Butter to make your Maggi creamier!" },
-  5:  { toId: 10, reason: "🧈 Amul Butter goes great with Britannia Bread!" },
-  6:  { toId: 7,  reason: "🥭 Cool down with Frooti after spicy Kurkure!" },
-  7:  { toId: 6,  reason: "🌽 Kurkure is the perfect snack with Frooti!" },
-  8:  { toId: 3,  reason: "🍫 Complete the combo — add Dairy Milk!" },
-  9:  { toId: 4,  reason: "🍜 Hajmola after Maggi is a classic combo!" },
-  10: { toId: 5,  reason: "🍞 Amul Butter tastes best on Britannia Bread!" },
+  1:  { toId: 2,  reason: "🔥 87% of customers grab Coca-Cola with Lays!" },
+  2:  { toId: 1,  reason: "🥔 Lays is the perfect snack with Coca-Cola!" },
+  3:  { toId: 5,  reason: "🍫 Grab a Dairy Milk to go with your bread!" },
+  4:  { toId: 6,  reason: "🍪 Parle-G biscuits are great after Maggi!" },
+  5:  { toId: 7,  reason: "🥛 Wash down that Dairy Milk with cold Amul Milk!" },
+  6:  { toId: 2,  reason: "🥤 Coca-Cola pairs perfectly with biscuits!" },
+  7:  { toId: 6,  reason: "🍪 Parle-G biscuits are great with a glass of milk!" },
 }
 
 // The offers banner is part of the checkout flow, not just decoration.  Keep
@@ -248,12 +246,19 @@ export default function Cart({ customer, onLogout }) {
 
   const fetchOrderHistory = useCallback(async () => {
     if (!customer?.mobile) return
-    setLoadingOrders(true)
+    setLoadingOrders(prev => prev === false ? true : prev) // only show spinner on first load
     try {
       const response = await fetch(`${BACKEND_URL}/cart/transactions`)
       if (!response.ok) throw new Error('Could not load orders')
       const data = await response.json()
-      setOrderHistory(uniquePaidTransactions(data).filter(tx => tx.mobile === customer.mobile))
+      // Normalise mobile comparison: strip all non-digits then compare last 10 digits
+      const normMobile = String(customer.mobile).replace(/\D/g, '').slice(-10)
+      setOrderHistory(
+        uniquePaidTransactions(data).filter(tx => {
+          const txMobile = String(tx.mobile || '').replace(/\D/g, '').slice(-10)
+          return txMobile === normMobile
+        })
+      )
     } catch {
       // Leave the last successfully loaded history visible if the backend is unavailable.
     } finally {
@@ -261,8 +266,17 @@ export default function Cart({ customer, onLogout }) {
     }
   }, [customer?.mobile])
 
+  // Fetch orders on mount
   useEffect(() => {
-    if (activeTab === 'orders') fetchOrderHistory()
+    fetchOrderHistory()
+  }, [fetchOrderHistory])
+
+  // Poll orders every 5s when on orders tab so new checkouts show up instantly
+  useEffect(() => {
+    if (activeTab !== 'orders') return
+    fetchOrderHistory()
+    const interval = setInterval(fetchOrderHistory, 5000)
+    return () => clearInterval(interval)
   }, [activeTab, fetchOrderHistory])
 
   // Camera
@@ -583,15 +597,14 @@ export default function Cart({ customer, onLogout }) {
     setCartItems([])
     setShowCheckout(false)
     closeCamera()
-    setActiveTab('cart')
     // Refresh product stock from backend after checkout
     fetch(`${BACKEND_URL}/products/`)
       .then(r => r.json())
       .then(data => setProducts(data.map(mapProduct)))
       .catch(() => {})
-    // The receipt only enables Done after its checkout POST has finished, so
-    // this refresh includes the order that was just placed.
+    // Fetch latest orders then switch to orders tab so user sees their new order
     await fetchOrderHistory()
+    setActiveTab('orders')
   }, [closeCamera, fetchOrderHistory])
 
   const subtotal = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0)

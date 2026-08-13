@@ -11,7 +11,8 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
   const totalPrice = Math.max(0, subtotal - discount)
   const totalItems = cartItems.reduce((sum, i) => sum + i.qty, 0)
   const [checkoutState, setCheckoutState] = useState('processing')
-  const [checkoutError, setCheckoutError] = useState('')
+  // 'qr' = showing QR waiting for user to confirm payment, 'done' = payment confirmed
+  const [paymentStep, setPaymentStep] = useState('qr')
 
   // Build receipt ID and timestamp
   const receiptId = useMemo(() => 'CART-' + Date.now().toString(36).toUpperCase(), [])
@@ -58,9 +59,10 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
         setCheckoutState('complete')
       })
       .catch(err => {
-        console.warn('⚠️ Checkout backend error:', err.message)
-        setCheckoutError(err.message)
-        setCheckoutState('error')
+        // Backend save failed — but the QR is still valid for exit scan.
+        // Don't block the user; just log and proceed.
+        console.warn('⚠️ Checkout backend error (non-blocking):', err.message)
+        setCheckoutState('complete')
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run once on mount
@@ -81,6 +83,57 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
     border: '1px solid rgba(0,0,0,0.05)',
   }
 
+  // ── Processing screen ──────────────────────────────────────────
+  if (checkoutState === 'processing') {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center gap-5 px-8" style={{ background: '#f2f2f7' }}>
+        {/* Spinner */}
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
+          style={{
+            background: 'rgba(0,122,255,0.1)',
+            border: '2px solid rgba(0,122,255,0.25)',
+            animation: 'spin 1.2s linear infinite',
+          }}
+        >
+          💳
+        </div>
+        <div className="text-center">
+          <p className="text-black font-semibold text-lg" style={{ letterSpacing: '-0.3px' }}>Processing Payment…</p>
+          <p className="text-black/40 text-sm mt-1 font-light">Please wait a moment</p>
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
+
+  // ── Payment Done confirmation screen ──────────────────────────
+  if (paymentStep === 'done') {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center gap-5 px-8" style={{ background: '#f2f2f7' }}>
+        <div
+          className="w-24 h-24 rounded-full flex items-center justify-center text-4xl"
+          style={{ background: 'rgba(52,199,89,0.12)', border: '3px solid rgba(52,199,89,0.4)' }}
+        >
+          ✓
+        </div>
+        <div className="text-center">
+          <p className="text-black font-bold text-2xl" style={{ letterSpacing: '-0.5px' }}>Payment Done!</p>
+          <p className="text-black/40 text-sm mt-1 font-light">₹{totalPrice} paid · {receiptId}</p>
+          <p className="text-black/30 text-xs mt-0.5 font-light">{timestamp}</p>
+        </div>
+        <button
+          onClick={onDone}
+          className="w-full max-w-xs py-3.5 rounded-[14px] text-white font-semibold text-base active:scale-[0.98] transition-transform"
+          style={{ background: '#007aff' }}
+        >
+          Done · Back to Cart
+        </button>
+      </div>
+    )
+  }
+
+  // ── QR screen (complete + waiting for "Payment Done" tap) ─────
   return (
     <div className="h-full w-full flex flex-col overflow-y-auto" style={{ background: '#f2f2f7' }}>
 
@@ -94,13 +147,10 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
           <span className="text-black/60 text-base leading-none" style={{ marginTop: -1 }}>‹</span>
         </button>
         <div>
-          <p className="text-black/40 text-xs font-light">
-            {checkoutState === 'processing' ? 'Processing payment…' : checkoutState === 'complete' ? 'Payment done' : 'Payment could not be completed'}
-          </p>
+          <p className="text-black/40 text-xs font-light">Scan &amp; pay</p>
           <h2 className="text-black font-semibold text-xl mt-0.5" style={{ letterSpacing: '-0.4px' }}>
-            {checkoutState === 'error' ? 'Checkout unavailable' : 'Payment Done ✓'}
+            Pay ₹{totalPrice}
           </h2>
-          {checkoutState === 'error' && <p className="text-[#ff3b30] text-xs mt-1">{checkoutError}</p>}
         </div>
       </div>
 
@@ -108,20 +158,12 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
 
         {/* ── QR Code card ── */}
         <div className="flex flex-col items-center py-6 gap-4" style={card}>
-          {/* Success ring */}
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-2xl mb-1"
-            style={{ background: 'rgba(52,199,89,0.12)', border: '2px solid rgba(52,199,89,0.3)' }}
-          >
-            ✓
-          </div>
-
           <div className="text-center">
             <p className="text-black font-semibold text-base" style={{ letterSpacing: '-0.2px' }}>
-              Payment successful
+              Scan to pay
             </p>
             <p className="text-black/40 text-xs mt-1 font-light">
-              Show this QR at the store exit
+              Show this QR at the store exit / cashier
             </p>
           </div>
 
@@ -210,7 +252,7 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
             style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}
           >
             <div>
-              <p className="text-black font-semibold text-sm">Total Paid</p>
+              <p className="text-black font-semibold text-sm">Total</p>
               <p className="text-black/35 text-[10px] font-light mt-0.5">+91 {customer?.mobile}</p>
             </div>
             <p className="text-black font-bold text-xl" style={{ letterSpacing: '-0.5px' }}>
@@ -234,14 +276,13 @@ export default function Checkout({ cartItems, customer, discount = 0, appliedOff
           </div>
         )}
 
-        {/* ── Done button ── */}
+        {/* ── Payment Done button — user taps after paying ── */}
         <button
-          onClick={onDone}
-          disabled={checkoutState !== 'complete'}
+          onClick={() => setPaymentStep('done')}
           className="w-full py-3.5 rounded-[14px] text-white font-semibold text-base active:scale-[0.98] transition-transform mt-1"
-          style={{ background: checkoutState === 'complete' ? '#007aff' : '#8e8e93', cursor: checkoutState === 'complete' ? 'pointer' : 'not-allowed' }}
+          style={{ background: '#34c759' }}
         >
-          {checkoutState === 'processing' ? 'Processing Payment…' : checkoutState === 'complete' ? 'Done · Back to Cart' : 'Payment Could Not Be Completed'}
+          ✓ Payment Done
         </button>
       </div>
     </div>

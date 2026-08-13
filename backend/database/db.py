@@ -35,7 +35,9 @@ class Transaction(Base):
     receipt_id = Column(String, nullable=False)
     mobile = Column(String, nullable=True)
     total = Column(Float, nullable=False)
+    discount = Column(Float, nullable=False, default=0)
     items_json = Column(String, nullable=False)  # JSON string of cart items
+    offers_json = Column(String, nullable=False, default='[]')  # JSON string of applied offers
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -49,3 +51,12 @@ def get_db():
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # Add new columns to existing DB if they don't exist yet (safe migrations)
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        existing = [row[1] for row in conn.execute(text("PRAGMA table_info(transactions)"))]
+        if 'discount' not in existing:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN discount FLOAT NOT NULL DEFAULT 0"))
+        if 'offers_json' not in existing:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN offers_json TEXT NOT NULL DEFAULT '[]'"))
+        conn.commit()

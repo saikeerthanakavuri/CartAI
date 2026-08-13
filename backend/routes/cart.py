@@ -25,12 +25,14 @@ def checkout(payload: CheckoutRequest, db: Session = Depends(get_db)):
             product.stock = max(0, product.stock - item.qty)
             product.sold_today = product.sold_today + item.qty
 
-    # Record the transaction
+    # Record the transaction (with discount + offers)
     transaction = Transaction(
         receipt_id=payload.receipt_id,
         mobile=payload.mobile,
         total=payload.total,
+        discount=payload.discount or 0,
         items_json=json.dumps([item.model_dump() for item in payload.items]),
+        offers_json=json.dumps(payload.offers or []),
     )
     db.add(transaction)
     db.commit()
@@ -45,7 +47,7 @@ def checkout(payload: CheckoutRequest, db: Session = Depends(get_db)):
 
 @router.get("/transactions")
 def get_transactions(db: Session = Depends(get_db)):
-    transactions = db.query(Transaction).order_by(Transaction.created_at.desc()).limit(50).all()
+    transactions = db.query(Transaction).order_by(Transaction.created_at.desc()).limit(100).all()
     result = []
     for t in transactions:
         result.append({
@@ -53,7 +55,9 @@ def get_transactions(db: Session = Depends(get_db)):
             "receipt_id": t.receipt_id,
             "mobile": t.mobile,
             "total": t.total,
+            "discount": getattr(t, 'discount', 0) or 0,
             "items": json.loads(t.items_json),
+            "offers": json.loads(getattr(t, 'offers_json', None) or '[]'),
             "created_at": t.created_at.isoformat() if t.created_at else None,
         })
     return result

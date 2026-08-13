@@ -65,16 +65,20 @@ function getTransactionStats(transactions, products) {
   const yesterdayDate = new Date()
   yesterdayDate.setDate(yesterdayDate.getDate() - 1)
   const yesterday = dateKey(yesterdayDate)
-  const totals = { revenue: 0, profit: 0, todayUnits: new Map(), yesterdayUnits: new Map(), allUnits: new Map() }
+  const totals = { revenue: 0, profit: 0, todayRevenue: 0, todayProfit: 0, todayUnits: new Map(), yesterdayUnits: new Map(), allUnits: new Map() }
 
   transactions.forEach(transaction => {
     const key = dateKey(transaction.created_at)
     const items = Array.isArray(transaction.items) ? transaction.items : []
     const transactionTotal = Number(transaction.total) || 0
     const cost = itemsCost(items, products)
+    // All-time revenue & profit
+    totals.revenue += transactionTotal
+    totals.profit += transactionTotal - cost
+    // Today-only
     if (key === today) {
-      totals.revenue += transactionTotal
-      totals.profit += transactionTotal - cost
+      totals.todayRevenue += transactionTotal
+      totals.todayProfit += transactionTotal - cost
     }
     items.forEach(item => {
       const id = Number(item.id)
@@ -170,6 +174,8 @@ export default function Dashboard({ onLogout }) {
   const transactionStats = useMemo(() => getTransactionStats(transactions, products), [transactions, products])
   const revenue = transactionStats.revenue
   const profit = transactionStats.profit
+  const todayRevenue = transactionStats.todayRevenue
+  const todayProfit = transactionStats.todayProfit
   const topSellers = [...transactionStats.allUnits.values()]
     .sort((a, b) => b.qty - a.qty)
     .slice(0, 5)
@@ -271,11 +277,11 @@ export default function Dashboard({ onLogout }) {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 py-4" style={{ minHeight: 0 }}>
-        {/* 1. Revenue Today */}
+        {/* 1. Revenue */}
         <div className="mb-3 p-4" style={card}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-black/40 text-xs font-light">Revenue Today</p>
+              <p className="text-black/40 text-xs font-light">Total Revenue</p>
               <p className="text-black text-2xl font-bold mt-1" style={{ letterSpacing: '-0.5px' }}>
                 ₹{revenue.toLocaleString('en-IN')}
               </p>
@@ -285,7 +291,17 @@ export default function Dashboard({ onLogout }) {
                 </span>
               </p>
             </div>
-            <div className="text-4xl">💰</div>
+            <div className="text-right">
+              <div className="text-4xl mb-1">💰</div>
+              {todayRevenue > 0 ? (
+                <div className="text-right">
+                  <p className="text-[10px] text-black/40">Today</p>
+                  <p className="text-xs font-semibold" style={{ color: '#007aff' }}>+₹{todayRevenue.toLocaleString('en-IN')}</p>
+                </div>
+              ) : (
+                <p className="text-[10px] text-black/30">No sales today yet</p>
+              )}
+            </div>
           </div>
         </div>
 

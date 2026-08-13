@@ -55,6 +55,8 @@ class CheckoutRequest(BaseModel):
     mobile: Optional[str] = None
     items: List[CartItem]
     total: float
+    discount: Optional[float] = 0
+    offers: Optional[list] = []
 
 
 class CheckoutResponse(BaseModel):
