@@ -308,6 +308,15 @@ export default function Cart({ customer, onLogout }) {
     }
   }, [activeTab])
 
+  // Also listen for localStorage changes (shopkeeper toggles/adds offers in same browser)
+  useEffect(() => {
+    const onStorage = () => setOffers(getOffers().filter(o => o.active))
+    window.addEventListener('storage', onStorage)
+    // Poll every 3s to catch same-tab localStorage changes (storage event only fires in other tabs)
+    const interval = setInterval(onStorage, 3000)
+    return () => { window.removeEventListener('storage', onStorage); clearInterval(interval) }
+  }, [])
+
   // Offers claimed state
   const [claimedOffers, setClaimedOffers] = useState(new Set())
   const [offerMessage, setOfferMessage] = useState('')

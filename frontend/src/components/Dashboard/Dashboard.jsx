@@ -856,6 +856,13 @@ function AddSaleSection({ products, setProducts, expanded, onToggle }) {
   const [discount, setDiscount] = useState(0)
   const [comboItems, setComboItems] = useState([])
   const [comboDiscount, setComboDiscount] = useState(0)
+  const [processing, setProcessing] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   const addComboItem = () => {
     if (selectedProduct && quantity > 0) {
@@ -886,36 +893,51 @@ function AddSaleSection({ products, setProducts, expanded, onToggle }) {
     return 0
   }
 
-  const processSale = () => {
+  const processSale = async () => {
+    // Build items list
+    let items = []
+    let total = calculateTotal()
     if (saleType === 'single' && selectedProduct && quantity > 0) {
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === parseInt(selectedProduct)
-            ? { ...p, soldToday: p.soldToday + quantity, stock: Math.max(0, p.stock - quantity) }
-            : p
-        )
-      )
-      setSelectedProduct('')
-      setQuantity(1)
-      setDiscount(0)
-      alert(`Sale added! Total: ₹${calculateTotal().toFixed(2)}`)
+      const product = products.find((p) => p.id === parseInt(selectedProduct))
+      if (!product) return
+      items = [{ id: product.id, name: product.name, qty: quantity, price: product.sellPrice, emoji: '📦', variant: product.unit || '' }]
     } else if (saleType === 'combo' && comboItems.length > 0) {
-      setProducts((prev) =>
-        prev.map((p) => {
-          const comboItem = comboItems.find((item) => item.product.id === p.id)
-          if (comboItem) {
-            return {
-              ...p,
-              soldToday: p.soldToday + comboItem.quantity,
-              stock: Math.max(0, p.stock - comboItem.quantity),
-            }
-          }
-          return p
-        })
-      )
-      setComboItems([])
-      setComboDiscount(0)
-      alert(`Combo sale added! Total: ₹${calculateTotal().toFixed(2)}`)
+      items = comboItems.map(item => ({
+        id: item.product.id, name: item.product.name, qty: item.quantity,
+        price: item.product.sellPrice, emoji: '📦', variant: item.product.unit || '',
+      }))
+    } else return
+
+    setProcessing(true)
+    const receiptId = 'MANUAL-' + Date.now().toString(36).toUpperCase()
+    try {
+      const res = await fetch(`${BACKEND_URL}/cart/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          receipt_id: receiptId,
+          mobile: null,
+          items,
+          total,
+          discount: discount || comboDiscount || 0,
+          offers: [],
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || 'Failed to record sale')
+      }
+      // Refresh products from backend to get updated stock
+      const updated = await fetch(`${BACKEND_URL}/products/`).then(r => r.json())
+      setProducts(updated.map(mapBackendProduct))
+      // Reset form
+      setSelectedProduct(''); setQuantity(1); setDiscount(0)
+      setComboItems([]); setComboDiscount(0)
+      showToast(`✅ Sale recorded! ₹${total.toFixed(2)}`)
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'error')
+    } finally {
+      setProcessing(false)
     }
   }
 
@@ -927,6 +949,15 @@ function AddSaleSection({ products, setProducts, expanded, onToggle }) {
       onToggle={onToggle}
     >
       <div className="mt-3">
+        {/* Toast */}
+        {toast && (
+          <div
+            className="mb-3 px-3 py-2 rounded-[10px] text-xs font-medium"
+            style={{ background: toast.type === 'error' ? 'rgba(255,59,48,0.1)' : 'rgba(52,199,89,0.1)', color: toast.type === 'error' ? '#ff3b30' : '#1d6b34' }}
+          >
+            {toast.msg}
+          </div>
+        )}
         {/* Sale type toggle */}
         <div className="flex gap-2 mb-3">
           <button
@@ -996,11 +1027,11 @@ function AddSaleSection({ products, setProducts, expanded, onToggle }) {
 
             <button
               onClick={processSale}
-              disabled={!selectedProduct || quantity <= 0}
+              disabled={!selectedProduct || quantity <= 0 || processing}
               className="w-full py-3 rounded-[12px] text-white font-semibold text-sm active:scale-98 transition-transform disabled:opacity-40"
               style={{ background: '#34c759' }}
             >
-              Add Sale
+              {processing ? 'Recording…' : 'Add Sale'}
             </button>
           </div>
         ) : (
@@ -1080,11 +1111,11 @@ function AddSaleSection({ products, setProducts, expanded, onToggle }) {
 
             <button
               onClick={processSale}
-              disabled={comboItems.length === 0}
+              disabled={comboItems.length === 0 || processing}
               className="w-full py-3 rounded-[12px] text-white font-semibold text-sm active:scale-98 transition-transform disabled:opacity-40"
               style={{ background: '#34c759' }}
             >
-              Add Combo Sale
+              {processing ? 'Recording…' : 'Add Combo Sale'}
             </button>
           </div>
         )}
