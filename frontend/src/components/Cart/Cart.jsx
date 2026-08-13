@@ -151,7 +151,7 @@ async function identifyWithVision(imageBase64, products, references = {}) {
   const imageBase64Data = imageBase64.split(',')[1]
   if (!imageBase64Data) throw new Error('Invalid camera image')
 
-  const model = new GoogleGenerativeAI(GEMINI_API_KEY).getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = new GoogleGenerativeAI(GEMINI_API_KEY).getGenerativeModel({ model: 'gemini-flash-latest' })
   // Use one representative image per product. This keeps the live request
   // responsive while still grounding identification in the stored catalogue.
   const referenceParts = (await Promise.all(catalog
@@ -527,6 +527,7 @@ export default function Cart({ customer, onLogout }) {
       const video = videoRef.current
       const canvas = canvasRef.current
       if (liveScanBusyRef.current || !video || !canvas || video.readyState < 2 || !video.videoWidth) return
+      if (Date.now() - lastVisionAttemptRef.current < 2800) return
 
       liveScanBusyRef.current = true
       try {
@@ -534,7 +535,6 @@ export default function Cart({ customer, onLogout }) {
         canvas.height = video.videoHeight
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
         const image = canvas.toDataURL('image/jpeg', 0.82)
-        if (Date.now() - lastVisionAttemptRef.current < 2800) return
         lastVisionAttemptRef.current = Date.now()
         setLiveDetection('Checking product package…')
         const result = await identifyWithVision(image, products, productReferences)
@@ -554,10 +554,13 @@ export default function Cart({ customer, onLogout }) {
           addToCart(result)
         }
       } catch (error) {
-        console.error('Live product recognition failed:', error)
         liveDetectionRef.current = { productId: null, sightings: 0, lastSeen: 0 }
         setLiveDetection('')
-        setCameraError(visionErrorMessage(error))
+        // Only show error for non-"not found" cases (confidence too low is expected)
+        const msg = String(error?.message || '')
+        if (!/No catalogue product|confidently recognised/i.test(msg)) {
+          setCameraError(visionErrorMessage(error))
+        }
       } finally {
         liveScanBusyRef.current = false
       }
