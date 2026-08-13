@@ -1,65 +1,83 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import Checkout from '../Checkout/Checkout'
 import CustomerAI from '../CustomerAI/CustomerAI'
+import { getOffers } from '../../data/offersStore'
+import { getProductReferences, resizeReferenceImage, saveProductReference } from '../../data/productReferenceStore'
 
-// ── Mock product database ─────────────────────────────────────────
-const MOCK_PRODUCTS = [
-  { id: 1, name: "Lays Classic",    variant: "Classic Salted · 50g",    price: 20, emoji: "🥔" },
-  { id: 2, name: "Coca-Cola",       variant: "Chilled · 330ml Can",     price: 40, emoji: "🥤" },
-  { id: 3, name: "Dairy Milk",      variant: "Milk Chocolate · 40g",    price: 30, emoji: "🍫" },
-  { id: 4, name: "Maggi Noodles",   variant: "Masala · 70g",            price: 15, emoji: "🍜" },
-  { id: 5, name: "Britannia Bread", variant: "Whole Wheat · 400g",      price: 45, emoji: "🍞" },
-  { id: 6, name: "Kurkure",         variant: "Masala Munch · 50g",      price: 20, emoji: "🌽" },
-  { id: 7, name: "Frooti",          variant: "Mango Drink · 200ml",     price: 15, emoji: "🥭" },
-  { id: 8, name: "Hide & Seek",     variant: "Chocolate Cookies · 75g", price: 25, emoji: "🍪" },
-  { id: 9, name: "Hajmola",         variant: "Digestive Candy · 20pc",  price: 10, emoji: "🍬" },
-  { id: 10, name: "Amul Butter",    variant: "Pasteurised · 100g",      price: 55, emoji: "🧈" },
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
+const referenceImageCache = new Map()
+
+// ── Emoji map for products from backend ──────────────────────────
+const EMOJI_MAP = {
+  'lays': '🥔', 'coca-cola': '🥤', 'coke': '🥤', 'cola': '🥤',
+  'bread': '🍞', 'maggi': '🍜', 'noodles': '🍜', 'dairy milk': '🍫',
+  'chocolate': '🍫', 'parle': '🍪', 'biscuit': '🍪', 'amul milk': '🥛',
+  'milk': '🥛', 'kurkure': '🌽', 'frooti': '🥭', 'amul butter': '🧈',
+  'butter': '🧈', 'hide & seek': '🍪', 'hajmola': '🍬',
+}
+
+function getEmoji(name) {
+  const lower = name.toLowerCase()
+  for (const [key, emoji] of Object.entries(EMOJI_MAP)) {
+    if (lower.includes(key)) return emoji
+  }
+  return '📦'
+}
+
+async function imageSourceToBase64(source) {
+  if (source.startsWith('data:image/')) return source.split(',')[1]
+  if (referenceImageCache.has(source)) return referenceImageCache.get(source)
+
+  const response = await fetch(source)
+  if (!response.ok) throw new Error(`Could not load reference image: ${source}`)
+  const blob = await response.blob()
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+  referenceImageCache.set(source, base64)
+  return base64
+}
+
+// Map backend product → cart-compatible shape
+function mapProduct(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    variant: p.unit ? `${p.category} · ${p.unit}` : p.category,
+    price: p.sell_price,
+    emoji: getEmoji(p.name),
+    stock: p.stock,
+  }
+}
+
+function uniquePaidTransactions(transactions) {
+  const receipts = new Set()
+  return transactions.filter(transaction => {
+    if (!transaction.receipt_id || receipts.has(transaction.receipt_id) || Number(transaction.total) <= 0) return false
+    receipts.add(transaction.receipt_id)
+    return true
+  })
+}
+
+// Fallback static products if backend is offline
+const FALLBACK_PRODUCTS = [
+  { id: 1, name: "Lays Classic",     variant: "Classic Salted · 50g",  price: 30, emoji: "🥔", stock: 10 },
+  { id: 2, name: "Coca-Cola 2L",     variant: "Beverages · bottles",   price: 70, emoji: "🥤", stock: 10 },
+  { id: 3, name: "Bread Loaf",       variant: "Bakery · loaves",       price: 40, emoji: "🍞", stock: 10 },
+  { id: 4, name: "Maggi Noodles",    variant: "Masala · 70g",          price: 30, emoji: "🍜", stock: 10 },
+  { id: 5, name: "Dairy Milk",       variant: "Milk Chocolate · 40g",  price: 40, emoji: "🍫", stock: 10 },
+  { id: 6, name: "Parle-G Biscuits", variant: "Snacks · packs",        price: 15, emoji: "🍪", stock: 10 },
+  { id: 7, name: "Amul Milk 1L",     variant: "Dairy · packets",       price: 60, emoji: "🥛", stock: 10 },
+  { id: 10, name: "Amul Butter",     variant: "Dairy · 100g",           price: 55, emoji: "🧈", stock: 10 },
 ]
 
-// ── Active offers / deals ────────────────────────────────────────────
-const OFFERS = [
-  {
-    id: 'o1',
-    title: 'Combo Deal 🔥',
-    description: 'Buy Lays + Coca-Cola together',
-    discount: 'Save ₹10',
-    tag: 'HOT',
-    color: '#ff3b30',
-    bg: 'linear-gradient(135deg, #fff1f0 0%, #ffe4e2 100%)',
-    border: 'rgba(255,59,48,0.2)',
-  },
-  {
-    id: 'o2',
-    title: 'Happy Hours ⚡',
-    description: '3 PM – 5 PM · 15% off all Beverages',
-    discount: '15% OFF',
-    tag: 'TODAY',
-    color: '#007aff',
-    bg: 'linear-gradient(135deg, #f0f6ff 0%, #ddeeff 100%)',
-    border: 'rgba(0,122,255,0.2)',
-  },
-  {
-    id: 'o3',
-    title: 'Snack Bundle 🍫',
-    description: 'Any 3 Snacks for just ₹55',
-    discount: '₹55 Bundle',
-    tag: 'LIMITED',
-    color: '#ff9500',
-    bg: 'linear-gradient(135deg, #fff9f0 0%, #ffefd6 100%)',
-    border: 'rgba(255,149,0,0.2)',
-  },
-  {
-    id: 'o4',
-    title: 'Fresh Pick 🍞',
-    description: 'Bread + Amul Butter combo',
-    discount: 'Save ₹15',
-    tag: 'FRESH',
-    color: '#34c759',
-    bg: 'linear-gradient(135deg, #f0fff4 0%, #d6f5e0 100%)',
-    border: 'rgba(52,199,89,0.2)',
-  },
-]
+// ── Active offers / deals — loaded from shared store ────────────────────────────────
 
 // ── Recommendation map (product id → suggested product id + reason) ─
 const RECOMMENDATIONS = {
@@ -75,26 +93,178 @@ const RECOMMENDATIONS = {
   10: { toId: 5,  reason: "🍞 Amul Butter tastes best on Britannia Bread!" },
 }
 
-// ── Mock AI identify (random product, 1.5s delay) ─────────────────
-function mockIdentify() {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      const product = MOCK_PRODUCTS[Math.floor(Math.random() * MOCK_PRODUCTS.length)]
-      resolve({ ...product, confidence: (92 + Math.random() * 7).toFixed(1) })
-    }, 1500)
-  })
+// The offers banner is part of the checkout flow, not just decoration.  Keep
+// the rules here so the discount shown in the cart is also the amount sent to
+// the receipt/backend at checkout.
+const OFFER_RULES = {
+  o1: { products: ['lays', 'coca-cola'], amount: 10, label: 'Lays + Coca-Cola combo' },
+  o2: { category: 'beverage', percent: 15, hours: [15, 17], label: 'Happy Hours beverages' },
+  o3: { category: 'snack', bundlePrice: 55, bundleSize: 3, label: '3 snack bundle' },
+  o4: { products: ['bread', 'butter'], amount: 15, label: 'Bread + Amul Butter combo' },
+}
+
+function productMatches(product, term) {
+  return product.name.toLowerCase().includes(term)
+}
+
+function isCategoryProduct(product, category) {
+  const text = `${product.name} ${product.variant || ''}`.toLowerCase()
+  if (category === 'beverage') return /beverage|coca-cola|coke|cola|frooti|drink/.test(text)
+  return /snack|lays|kurkure|biscuit|hide & seek|chocolate|dairy milk|hajmola/.test(text)
+}
+
+function isOfferAvailable(rule) {
+  if (!rule?.hours) return true
+  const hour = new Date().getHours()
+  return hour >= rule.hours[0] && hour < rule.hours[1]
+}
+
+function getOfferDiscount(offerId, cartItems) {
+  const rule = OFFER_RULES[offerId]
+  if (!rule) return 0
+  if (!isOfferAvailable(rule)) return 0
+  if (rule.amount) {
+    const qualifies = rule.products.every(term => cartItems.some(item => productMatches(item, term)))
+    return qualifies ? Math.min(rule.amount, cartItems.reduce((total, item) => total + item.price * item.qty, 0)) : 0
+  }
+  const eligibleTotal = cartItems.reduce((total, item) => (
+    isCategoryProduct(item, rule.category) ? total + item.price * item.qty : total
+  ), 0)
+  if (rule.percent) return Math.min(eligibleTotal, Math.round((eligibleTotal * rule.percent) * 100) / 100)
+  if (rule.bundlePrice) {
+    const eligibleItems = cartItems.flatMap(item => (
+      isCategoryProduct(item, rule.category) ? Array.from({ length: item.qty }, () => item.price) : []
+    )).sort((a, b) => b - a)
+    const bundledItems = eligibleItems.slice(0, Math.floor(eligibleItems.length / rule.bundleSize) * rule.bundleSize)
+    return bundledItems.reduce((total, price, index) => (
+      index % rule.bundleSize === 0 ? total + Math.max(0, price + bundledItems[index + 1] + bundledItems[index + 2] - rule.bundlePrice) : total
+    ), 0)
+  }
+  return 0
+}
+
+// Ask a vision model to identify the actual package, logo, and product text.
+// This deliberately accepts only a product from the current catalogue—Gemini
+// cannot invent an item that the cart does not sell.
+async function identifyWithVision(imageBase64, products, references = {}) {
+  if (!GEMINI_API_KEY) throw new Error('Product recognition is not configured')
+
+  const catalog = products.map(product => ({ id: product.id, name: product.name })).filter(product => product.id != null)
+  const imageBase64Data = imageBase64.split(',')[1]
+  if (!imageBase64Data) throw new Error('Invalid camera image')
+
+  const model = new GoogleGenerativeAI(GEMINI_API_KEY).getGenerativeModel({ model: 'gemini-2.5-flash' })
+  // Use one representative image per product. This keeps the live request
+  // responsive while still grounding identification in the stored catalogue.
+  const referenceParts = (await Promise.all(catalog
+    .filter(product => references[product.id]?.length)
+    .map(async (product) => {
+      const source = references[product.id][0]
+      const data = await imageSourceToBase64(source)
+      const mimeType = source.includes('.png') ? 'image/png' : source.includes('.webp') ? 'image/webp' : 'image/jpeg'
+      return [
+        { text: `Reference photo for catalogue product ${product.id}: ${product.name}.` },
+        { inlineData: { mimeType, data } },
+      ]
+    }))).flat()
+
+  const result = await model.generateContent([
+    {
+      text: `You are a strict retail product scanner. Inspect the package, brand logo, and readable text in the final LIVE CAMERA PHOTO. Reference photos may precede it; use them to compare the exact packaging.\n\nOnly identify an item when the product package itself is clearly visible. Never identify a person, face, background, hand, or an uncertain object.\n\nStore catalogue: ${JSON.stringify(catalog)}\n\nReply with ONLY valid JSON in this exact form:\n{"detected":true,"productId":2,"confidence":0.0}\nIf no catalogue product is clearly visible, reply:\n{"detected":false,"productId":null,"confidence":0.0}`,
+    },
+    ...referenceParts,
+    { text: 'LIVE CAMERA PHOTO:' },
+    {
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: imageBase64Data,
+      },
+    },
+  ])
+
+  const text = result.response.text().trim()
+  const json = text.match(/\{[\s\S]*\}/)?.[0]
+  if (!json) throw new Error('The vision service returned an invalid response')
+
+  const detection = JSON.parse(json)
+  const confidence = Number(detection.confidence)
+  const product = catalog.find(item => Number(item.id) === Number(detection.productId))
+  if (!detection.detected || !product || !Number.isFinite(confidence) || confidence < 0.75) {
+    throw new Error('No catalogue product was confidently recognised')
+  }
+
+  const cartProduct = products.find(item => Number(item.id) === Number(detection.productId))
+  if (!cartProduct) throw new Error('Recognised product is unavailable')
+
+  return { ...cartProduct, confidence: (Math.min(confidence, 1) * 100).toFixed(1) }
 }
 
 // ── Helper: get recommendation for a product ─────────────────────
-function getRecommendation(productId) {
+function getRecommendation(productId, products) {
   const rec = RECOMMENDATIONS[productId]
   if (!rec) return null
-  const suggested = MOCK_PRODUCTS.find(p => p.id === rec.toId)
+  const suggested = products.find(p => p.id === rec.toId)
   if (!suggested) return null
   return { ...suggested, reason: rec.reason }
 }
 
+function visionErrorMessage(error) {
+  const message = String(error?.message || error || '')
+  if (/API key not valid|API_KEY_INVALID|invalid api key/i.test(message)) {
+    return 'Product recognition is unavailable: the Gemini API key is invalid. Update VITE_GEMINI_API_KEY and restart the dev server.'
+  }
+  if (/quota|rate limit|429/i.test(message)) {
+    return 'Product recognition has reached its Gemini quota. Please try again later or use a key with available quota.'
+  }
+  if (/network|fetch|failed to fetch/i.test(message)) {
+    return 'Product recognition needs an internet connection. Check your network and try again.'
+  }
+  return 'Could not identify this product. Centre the package/logo and try again.'
+}
+
 export default function Cart({ customer, onLogout }) {
+  // Products from backend
+  const [products, setProducts] = useState(FALLBACK_PRODUCTS)
+
+  // Load products from backend on mount
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/products/`)
+      .then(r => r.json())
+      .then(data => {
+        const fromBackend = data.map(mapProduct)
+        // Keep the catalogue complete when an older backend has not yet
+        // seeded a product used by an active combo offer.
+        setProducts([...fromBackend, ...FALLBACK_PRODUCTS.filter(product => !fromBackend.some(item => item.id === product.id))])
+      })
+      .catch(() => {
+        console.warn('Backend offline, using fallback products')
+      })
+  }, [])
+
+  // Tab: 'cart' | 'orders'
+  const [activeTab, setActiveTab] = useState('cart')
+  const [orderHistory, setOrderHistory] = useState([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+
+  const fetchOrderHistory = useCallback(async () => {
+    if (!customer?.mobile) return
+    setLoadingOrders(true)
+    try {
+      const response = await fetch(`${BACKEND_URL}/cart/transactions`)
+      if (!response.ok) throw new Error('Could not load orders')
+      const data = await response.json()
+      setOrderHistory(uniquePaidTransactions(data).filter(tx => tx.mobile === customer.mobile))
+    } catch {
+      // Leave the last successfully loaded history visible if the backend is unavailable.
+    } finally {
+      setLoadingOrders(false)
+    }
+  }, [customer?.mobile])
+
+  useEffect(() => {
+    if (activeTab === 'orders') fetchOrderHistory()
+  }, [activeTab, fetchOrderHistory])
+
   // Camera
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraError,  setCameraError]  = useState('')
@@ -103,6 +273,8 @@ export default function Cart({ customer, onLogout }) {
   // Identification
   const [identifying, setIdentifying] = useState(false)
   const [identified,  setIdentified]  = useState(null)
+  const [liveDetection, setLiveDetection] = useState('')
+  const [productReferences, setProductReferences] = useState(() => getProductReferences())
 
   // Recommendation
   const [recommendation, setRecommendation] = useState(null) // shown after add-to-cart
@@ -112,25 +284,31 @@ export default function Cart({ customer, onLogout }) {
   const [cartItems,   setCartItems]   = useState([])
   const [showCheckout, setShowCheckout] = useState(false)
 
-  // Offers
+  // Offers — loaded from shared localStorage store (shopkeeper can add/toggle)
+  const [offers, setOffers] = useState(() => getOffers().filter(o => o.active))
+
+  // Refresh offers when the cart tab becomes visible (picks up shopkeeper changes)
+  useEffect(() => {
+    if (activeTab === 'cart') {
+      setOffers(getOffers().filter(o => o.active))
+    }
+  }, [activeTab])
+
+  // Offers claimed state
   const [claimedOffers, setClaimedOffers] = useState(new Set())
+  const [offerMessage, setOfferMessage] = useState('')
 
   // Manual select fallback
   const [showManualSelect, setShowManualSelect] = useState(false)
 
-  const claimOffer = useCallback((offerId) => {
-    setClaimedOffers(prev => new Set([...prev, offerId]))
-  }, [])
-
-  // Manual product selection (fallback when camera doesn't work)
-  const selectManualProduct = useCallback((product) => {
-    setIdentified({ ...product, confidence: '100.0' })
-    setShowManualSelect(false)
-  }, [])
-
   const videoRef  = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
+  const liveDetectionRef = useRef({ productId: null, sightings: 0, lastSeen: 0 })
+  const liveScanBusyRef = useRef(false)
+  const lastVisionAttemptRef = useRef(0)
+  const referenceUploadRef = useRef(null)
+  const [referenceProduct, setReferenceProduct] = useState(null)
 
   const card = {
     background: '#fff',
@@ -145,6 +323,8 @@ export default function Cart({ customer, onLogout }) {
     setCameraError('')
     setCaptured(null)
     setIdentified(null)
+    setLiveDetection('')
+    liveDetectionRef.current = { productId: null, sightings: 0, lastSeen: 0 }
     
     // Check if getUserMedia is supported
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -186,7 +366,7 @@ export default function Cart({ customer, onLogout }) {
 
   const closeCamera = useCallback(() => {
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
-    setCameraActive(false); setCaptured(null); setIdentified(null); setCameraError('')
+    setCameraActive(false); setCaptured(null); setIdentified(null); setCameraError(''); setLiveDetection('')
   }, [])
 
   const captureFrame = useCallback(() => {
@@ -201,22 +381,65 @@ export default function Cart({ customer, onLogout }) {
 
   // ── Identify ──────────────────────────────────────────────────
   const identifyProduct = useCallback(async () => {
-    setIdentifying(true); setIdentified(null)
-    const result = await mockIdentify()
-    setIdentifying(false); setIdentified(result)
+    console.log('🚀 Starting product identification...')
+    setIdentifying(true); setIdentified(null); setCameraError('')
+    
+    try {
+      console.log('📸 Captured image size:', captured ? captured.length : 'none')
+      if (!captured) {
+        throw new Error('No image captured')
+      }
+      
+      const result = await identifyWithVision(captured, products, productReferences)
+      console.log('✅ Identification successful:', result)
+      setIdentified(result)
+      
+    } catch (err) {
+      console.error('❌ Identification failed:', err)
+      setCameraError(visionErrorMessage(err))
+    } finally {
+      setIdentifying(false)
+    }
+  }, [captured, products, productReferences])
+
+  const beginReferenceUpload = useCallback((product) => {
+    setReferenceProduct(product)
+    referenceUploadRef.current?.click()
   }, [])
+
+  const saveReferencePhoto = useCallback(async (event) => {
+    const file = event.target.files?.[0]
+    if (!file || !referenceProduct) return
+    try {
+      const image = await resizeReferenceImage(file)
+      setProductReferences(saveProductReference(referenceProduct.id, image))
+    } catch {
+      setCameraError('Could not save that reference image. Please try another photo.')
+    } finally {
+      event.target.value = ''
+      setReferenceProduct(null)
+    }
+  }, [referenceProduct])
 
   // ── Cart ──────────────────────────────────────────────────────
   const addToCart = useCallback((product) => {
+    if (Number(product.stock) <= 0) {
+      setCameraError(`${product.name} is currently out of stock.`)
+      return
+    }
     setCartItems(prev => {
       const existing = prev.find(i => i.id === product.id)
+      if (existing && existing.qty >= Number(product.stock)) {
+        setCameraError(`Only ${product.stock} ${product.name} available.`)
+        return prev
+      }
       return existing
         ? prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
         : [...prev, { ...product, qty: 1 }]
     })
 
     // Show recommendation if one exists for this product
-    const rec = getRecommendation(product.id)
+    const rec = getRecommendation(product.id, products)
     if (rec) {
       setRecommendation(rec)
       // Auto-dismiss after 8 seconds
@@ -225,7 +448,102 @@ export default function Cart({ customer, onLogout }) {
     }
 
     closeCamera()
-  }, [closeCamera])
+  }, [closeCamera, products])
+
+  // Quick Pick is the no-camera route: selecting a product adds it immediately.
+  const selectManualProduct = useCallback((product) => {
+    addToCart(product)
+    setShowManualSelect(false)
+  }, [addToCart])
+
+  const claimOffer = useCallback((offerId) => {
+    const rule = OFFER_RULES[offerId]
+
+    if (!isOfferAvailable(rule)) {
+      setOfferMessage('Happy Hours can be claimed only from 3 PM to 5 PM.')
+      return
+    }
+
+    // Bundle offers put their advertised products into the cart immediately,
+    // so a customer can actually redeem the deal with one tap.
+    if (rule?.products) {
+      const bundleProducts = rule.products
+        .map(term => products.find(product => productMatches(product, term)))
+        .filter(Boolean)
+      if (bundleProducts.length !== rule.products.length) {
+        setOfferMessage('This combo is temporarily unavailable.')
+        return
+      }
+      if (bundleProducts.some(product => Number(product.stock) <= 0)) {
+        setOfferMessage('This combo is out of stock right now.')
+        return
+      }
+      setCartItems(prev => {
+        const next = [...prev]
+        bundleProducts.forEach(product => {
+          const index = next.findIndex(item => item.id === product.id)
+          if (index >= 0) next[index] = { ...next[index], qty: next[index].qty + 1 }
+          else next.push({ ...product, qty: 1 })
+        })
+        return next
+      })
+    }
+
+    setClaimedOffers(prev => new Set([...prev, offerId]))
+    setOfferMessage(rule?.products ? `${rule.label} added to your cart.` : 'Offer applied at checkout when eligible.')
+  }, [products])
+
+  // Identify the product continuously while the live camera is open. Two
+  // matching frames are required so a passing red object is not added by
+  // accident. This makes a centred Coca-Cola bottle add itself to the cart
+  // without making the customer press the shutter/identify buttons.
+  useEffect(() => {
+    if (!cameraActive || captured || identified) return undefined
+
+    const scanLiveFrame = async () => {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      if (liveScanBusyRef.current || !video || !canvas || video.readyState < 2 || !video.videoWidth) return
+
+      liveScanBusyRef.current = true
+      try {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+        const image = canvas.toDataURL('image/jpeg', 0.82)
+        if (Date.now() - lastVisionAttemptRef.current < 2800) return
+        lastVisionAttemptRef.current = Date.now()
+        setLiveDetection('Checking product package…')
+        const result = await identifyWithVision(image, products, productReferences)
+        const confidence = Number(result.confidence)
+        const now = Date.now()
+        const previous = liveDetectionRef.current
+        const sightings = previous.productId === result.id && now - previous.lastSeen < 3500
+          ? previous.sightings + 1
+          : 1
+
+        liveDetectionRef.current = { productId: result.id, sightings, lastSeen: now }
+        setLiveDetection(sightings === 1 ? `Found ${result.name}. Checking…` : `Found ${result.name} — adding to cart…`)
+
+        // A 90%+ package/logo match can be added immediately. Lower-confidence
+        // detections still need a second matching live frame.
+        if (confidence >= 90 || (sightings >= 2 && confidence >= 75)) {
+          addToCart(result)
+        }
+      } catch (error) {
+        console.error('Live product recognition failed:', error)
+        liveDetectionRef.current = { productId: null, sightings: 0, lastSeen: 0 }
+        setLiveDetection('')
+        setCameraError(visionErrorMessage(error))
+      } finally {
+        liveScanBusyRef.current = false
+      }
+    }
+
+    const interval = window.setInterval(scanLiveFrame, 1400)
+    scanLiveFrame()
+    return () => window.clearInterval(interval)
+  }, [cameraActive, captured, identified, addToCart, products, productReferences])
 
   const dismissRec = useCallback(() => {
     clearTimeout(recTimerRef.current)
@@ -243,8 +561,12 @@ export default function Cart({ customer, onLogout }) {
   }, [dismissRec])
 
   const addQty = useCallback((id) => {
-    setCartItems(prev => prev.map(i => i.id === id ? { ...i, qty: i.qty + 1 } : i))
-  }, [])
+    setCartItems(prev => prev.map(item => {
+      if (item.id !== id) return item
+      const product = products.find(candidate => candidate.id === id)
+      return product && item.qty < Number(product.stock) ? { ...item, qty: item.qty + 1 } : item
+    }))
+  }, [products])
 
   const removeFromCart = useCallback((id, mode = 'remove') => {
     setCartItems(prev => {
@@ -257,13 +579,38 @@ export default function Cart({ customer, onLogout }) {
   }, [])
 
   const handleCheckout = useCallback(() => setShowCheckout(true), [])
-  const handleDone     = useCallback(() => {
+  const handleDone     = useCallback(async () => {
     setCartItems([])
     setShowCheckout(false)
     closeCamera()
-  }, [closeCamera])
+    setActiveTab('cart')
+    // Refresh product stock from backend after checkout
+    fetch(`${BACKEND_URL}/products/`)
+      .then(r => r.json())
+      .then(data => setProducts(data.map(mapProduct)))
+      .catch(() => {})
+    // The receipt only enables Done after its checkout POST has finished, so
+    // this refresh includes the order that was just placed.
+    await fetchOrderHistory()
+  }, [closeCamera, fetchOrderHistory])
 
-  const totalPrice = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+  const subtotal = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+  const appliedOffers = useMemo(() => {
+    const qualifyingOffers = [...new Map(offers.map(offer => [offer.id, offer])).values()]
+      .filter(offer => claimedOffers.has(offer.id))
+      .map(offer => ({ ...offer, saving: getOfferDiscount(offer.id, cartItems) }))
+      .filter(offer => offer.saving > 0)
+    // A defensive ceiling prevents bad/duplicated offer data from ever making
+    // a real payment free. The advertised rules are far below 50%.
+    let remainingDiscount = subtotal * 0.5
+    return qualifyingOffers.map(offer => {
+      const saving = Math.min(offer.saving, remainingDiscount)
+      remainingDiscount -= saving
+      return { ...offer, saving }
+    }).filter(offer => offer.saving > 0)
+  }, [offers, claimedOffers, cartItems, subtotal])
+  const offerDiscount = appliedOffers.reduce((sum, offer) => sum + offer.saving, 0)
+  const totalPrice = Math.max(0, subtotal - offerDiscount)
   const totalItems = cartItems.reduce((sum, i) => sum + i.qty, 0)
 
   // Cleanup
@@ -288,13 +635,20 @@ export default function Cart({ customer, onLogout }) {
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
-            <Checkout cartItems={cartItems} customer={customer} onDone={handleDone} onBack={() => setShowCheckout(false)} />
+            <Checkout
+              cartItems={cartItems}
+              customer={customer}
+              discount={offerDiscount}
+              appliedOffers={appliedOffers}
+              onDone={handleDone}
+              onBack={() => setShowCheckout(false)}
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-black/40 text-xs font-light">Welcome back</p>
           <h2 className="text-black font-semibold text-base mt-0.5" style={{ letterSpacing: '-0.2px' }}>
@@ -310,8 +664,88 @@ export default function Cart({ customer, onLogout }) {
         </button>
       </div>
 
+      {/* ── Tab bar ── */}
+      <div
+        className="flex mb-3 rounded-[12px] p-1"
+        style={{ background: 'rgba(0,0,0,0.06)' }}
+      >
+        {[
+          { id: 'cart',   label: '🛒 Cart' + (cartItems.length > 0 ? ` (${cartItems.length})` : '') },
+          { id: 'orders', label: '🧾 My Orders' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className="flex-1 py-1.5 rounded-[9px] text-xs font-semibold transition-all active:scale-95"
+            style={{
+              background: activeTab === tab.id ? '#fff' : 'transparent',
+              color: activeTab === tab.id ? '#000' : 'rgba(0,0,0,0.4)',
+              boxShadow: activeTab === tab.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Orders Tab ── */}
+      {activeTab === 'orders' && (
+        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-4">
+          {loadingOrders ? (
+            <div className="flex items-center justify-center flex-1">
+              <div className="w-8 h-8 rounded-full border-4 border-black/10 border-t-[#007aff] animate-spin" />
+            </div>
+          ) : orderHistory.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6">
+              <span className="text-5xl">🧾</span>
+              <p className="text-black font-semibold text-base">No orders yet</p>
+              <p className="text-black/40 text-xs text-center font-light">
+                Complete a checkout to see your order history here
+              </p>
+            </div>
+          ) : (
+            orderHistory.map(tx => {
+              const items = Array.isArray(tx.items) ? tx.items : []
+              const ts = tx.created_at
+                ? new Date(tx.created_at).toLocaleString('en-IN', {
+                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+                  })
+                : 'Unknown time'
+              return (
+                <div
+                  key={tx.id}
+                  className="p-4 rounded-[16px]"
+                  style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-black font-semibold text-xs font-mono">{tx.receipt_id}</p>
+                      <p className="text-black/40 text-[10px]">{ts}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-black font-bold text-base">₹{tx.total}</p>
+                      <p className="text-[10px]" style={{ color: '#34c759' }}>✓ Paid</p>
+                    </div>
+                  </div>
+                  {items.length > 0 && (
+                    <div className="flex flex-col gap-1 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                      {items.map((item, i) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span className="text-black/60">{item.name} ×{item.qty}</span>
+                          <span className="text-black font-medium">₹{item.price * item.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
       {/* ── AI Recommendation Banner ── */}
-      <AnimatePresence>
+      {activeTab === 'cart' && <AnimatePresence>
         {recommendation && (
           <motion.div
             className="mb-3 p-3 rounded-[16px] flex items-center gap-3"
@@ -368,7 +802,10 @@ export default function Cart({ customer, onLogout }) {
           </div>
         </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>}
+
+      {/* ── Cart Tab Content ── */}
+      {activeTab === 'cart' && <>
 
       {/* ── Camera / Scan area ── */}
       <div className="flex-1 flex flex-col mb-4 overflow-hidden" style={{ ...card, borderRadius: 20 }}>
@@ -387,9 +824,9 @@ export default function Cart({ customer, onLogout }) {
                 <div key={i} className="absolute" style={{ ...s, width: 20, height: 20, borderRadius: 3 }} />
               ))}
             </div>
-            <p className="text-black font-semibold text-base" style={{ letterSpacing: '-0.2px' }}>Scan a Product</p>
+            <p className="text-black font-semibold text-base" style={{ letterSpacing: '-0.2px' }}>📸 Smart Product Scanner</p>
             <p className="text-black/35 text-xs text-center font-light leading-relaxed">
-              Point your camera at any product to identify it and add to cart
+              Point camera at products - Smart matching will identify and add them automatically
             </p>
             {cameraError && (
               <p className="text-[#ff3b30] text-xs text-center px-2 leading-relaxed mb-2">{cameraError}</p>
@@ -400,7 +837,7 @@ export default function Cart({ customer, onLogout }) {
                 className="flex-1 px-7 py-2.5 rounded-[10px] text-white text-sm font-semibold active:scale-95 transition-transform"
                 style={{ background: '#007aff' }}
               >
-                Open Camera
+                📸 Start Smart Scanner
               </button>
               <button
                 onClick={() => setShowManualSelect(true)}
@@ -411,44 +848,34 @@ export default function Cart({ customer, onLogout }) {
                 ⚡ Quick Pick
               </button>
             </div>
-            <p className="text-black/25 text-[10px] text-center mt-2 font-light">
-              Camera not working? Use Quick Pick
-            </p>
-          </div>
-        )}
-
-        {/* Manual product selector */}
-        {showManualSelect && !cameraActive && !captured && (
-          <div className="flex-1 flex flex-col overflow-y-auto p-4" style={{ borderRadius: 20 }}>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-black font-semibold text-sm">Quick Pick Product</p>
-              <button
-                onClick={() => setShowManualSelect(false)}
-                className="text-black/40 text-xs font-medium"
-              >
-                ✕ Cancel
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {MOCK_PRODUCTS.map(product => (
-                <button
-                  key={product.id}
-                  onClick={() => selectManualProduct(product)}
-                  className="flex items-center gap-3 p-3 rounded-[12px] active:scale-98 transition-transform text-left"
-                  style={{ background: '#f2f2f7', border: '1px solid rgba(0,0,0,0.06)' }}
+            {showManualSelect && (
+              <div className="w-full max-w-sm rounded-[10px] p-2" style={{ background: '#f2f2f7' }}>
+                <label htmlFor="quick-pick-product" className="block text-black/50 text-[10px] font-medium mb-1 px-1">
+                  Choose an object to add
+                </label>
+                <select
+                  id="quick-pick-product"
+                  autoFocus
+                  defaultValue=""
+                  onChange={(event) => {
+                    const product = products.find(item => String(item.id) === event.target.value)
+                    if (product) selectManualProduct(product)
+                  }}
+                  className="w-full rounded-[8px] bg-white px-3 py-2.5 text-sm font-medium outline-none"
+                  style={{ border: '1px solid rgba(0,122,255,0.25)', color: '#1c1c1e' }}
                 >
-                  <div className="w-12 h-12 rounded-[10px] flex items-center justify-center text-2xl flex-shrink-0"
-                    style={{ background: 'rgba(0,122,255,0.08)' }}>
-                    {product.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-black font-semibold text-sm leading-tight">{product.name}</p>
-                    <p className="text-black/40 text-[10px] mt-0.5 font-light">{product.variant}</p>
-                  </div>
-                  <p className="text-[#007aff] font-bold text-sm">₹{product.price}</p>
-                </button>
-              ))}
-            </div>
+                  <option value="" disabled>Select a product…</option>
+                  {products.map(product => (
+                    <option key={product.id} value={product.id} disabled={Number(product.stock) <= 0}>
+                      {product.emoji} {product.name} — {Number(product.stock) <= 0 ? 'Out of stock' : `₹${product.price}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <p className="text-black/25 text-[10px] text-center mt-2 font-light">
+              Works with: Lays, Coca-Cola, Bread, Maggi, Dairy Milk, Parle-G, Amul Milk
+            </p>
           </div>
         )}
 
@@ -482,10 +909,16 @@ export default function Cart({ customer, onLogout }) {
             {/* Top bar */}
             <div className="absolute top-0 left-0 right-0 flex justify-between items-center px-4 py-3"
               style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45), transparent)' }}>
-              <span className="text-white text-xs font-medium opacity-80">Point at a product</span>
+              <span className="text-white text-xs font-medium opacity-80">{liveDetection || 'Point at a product'}</span>
               <button onClick={closeCamera} className="text-white text-xs font-semibold px-2.5 py-1 rounded-full active:opacity-60"
                 style={{ background: 'rgba(255,255,255,0.2)' }}>✕ Close</button>
             </div>
+            {cameraError && (
+              <div className="absolute left-3 right-3 bottom-24 rounded-[10px] px-3 py-2 text-center text-xs font-medium text-white"
+                style={{ background: 'rgba(255,59,48,0.92)' }}>
+                {cameraError}
+              </div>
+            )}
             {/* Shutter */}
             <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-5 pt-3"
               style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)' }}>
@@ -574,17 +1007,29 @@ export default function Cart({ customer, onLogout }) {
 
       {/* Hidden canvas */}
       <canvas ref={canvasRef} className="hidden" />
+      <input
+        ref={referenceUploadRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={saveReferencePhoto}
+      />
 
       {/* ── Offers strip ── */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-2 px-0.5">
           <span className="text-black font-semibold text-sm">🎁 Offers for You</span>
           <span className="text-xs font-medium" style={{ color: '#007aff' }}>
-            {OFFERS.length - claimedOffers.size} active
+            {offers.length - claimedOffers.size} active
           </span>
         </div>
+        {offerMessage && (
+          <p className="mb-2 px-0.5 text-[11px] font-medium" style={{ color: '#34c759' }}>
+            ✓ {offerMessage}
+          </p>
+        )}
         <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {OFFERS.map(offer => {
+          {offers.map(offer => {
             const claimed = claimedOffers.has(offer.id)
             return (
               <motion.div
@@ -724,9 +1169,17 @@ export default function Cart({ customer, onLogout }) {
               ))}
             </div>
             {/* Total — always visible, outside scroll */}
-            <div className="border-t pt-2 mb-3 flex justify-between items-center" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
-              <span className="text-black/50 text-xs font-light">Total</span>
-              <span className="text-black font-bold text-sm">₹{totalPrice}</span>
+            <div className="border-t pt-2 mb-3" style={{ borderColor: 'rgba(0,0,0,0.06)' }}>
+              {offerDiscount > 0 && (
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[#34c759] text-xs font-medium">Offer savings</span>
+                  <span className="text-[#34c759] text-xs font-semibold">−₹{offerDiscount}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-black/50 text-xs font-light">Total</span>
+                <span className="text-black font-bold text-sm">₹{totalPrice}</span>
+              </div>
             </div>
           </>
         )}
@@ -743,6 +1196,7 @@ export default function Cart({ customer, onLogout }) {
 
       {/* ── Customer AI Assistant ── */}
       <CustomerAI cartItems={cartItems} />
+      </> /* end activeTab === 'cart' */}
     </div>
   )
 }

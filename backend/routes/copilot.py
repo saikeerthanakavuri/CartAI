@@ -8,7 +8,7 @@ import os
 
 router = APIRouter(prefix="/copilot", tags=["copilot"])
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAb8RN6KvGkkV86N-I3Ln1pcUO1g4WYFSkAb-x87Cbwqrdlm1Nw")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 
 def build_store_context(db: Session) -> str:

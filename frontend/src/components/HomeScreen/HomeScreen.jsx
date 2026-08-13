@@ -9,12 +9,12 @@ const apps = [
   { id: 'notes',   icon: '📝', label: 'Notes',      bg: '#ffd60a' },
   { id: 'settings',icon: '⚙️', label: 'Settings',   bg: '#8e8e93' },
   { id: 'cartai',  icon: '🛒', label: 'CartAI',     highlight: true },
-  { id: 'calc',    icon: '🧮', label: 'Calculator', bg: '#1c1c1e' },
+  { id: 'scanner', icon: '🚪', label: 'Exit Scan',  bg: '#1c1c1e', scannerApp: true },
   { id: 'clock',   icon: '⏰', label: 'Clock',      bg: '#1c1c1e' },
   { id: 'photos',  icon: '🖼️', label: 'Photos',     bg: '#fff' },
 ]
 
-export default function HomeScreen({ onOpenApp }) {
+export default function HomeScreen({ onOpenApp, onOpenScanner }) {
   return (
     <div
       className="h-full w-full flex flex-col px-5 pt-4 pb-3"
@@ -38,9 +38,13 @@ export default function HomeScreen({ onOpenApp }) {
         {apps.map((app) => (
           <button
             key={app.id}
-            onClick={app.id === 'cartai' ? onOpenApp : undefined}
+            onClick={
+              app.id === 'cartai' ? onOpenApp
+              : app.scannerApp ? onOpenScanner
+              : undefined
+            }
             className={`flex flex-col items-center gap-1.5 group ${
-              app.id === 'cartai' ? 'cursor-pointer' : 'cursor-default'
+              app.id === 'cartai' || app.scannerApp ? 'cursor-pointer' : 'cursor-default'
             }`}
           >
             <div

@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const SHOPKEEPER_EMAIL = 'shopkeeper@gmail.com'
 const SHOPKEEPER_PASSWORD = '1234'
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
-const DAILY_SUMMARY = {
-  revenue: '₹4,280',
-  change: '+8.4%',
-  alerts: 2,
+const FALLBACK_SUMMARY = {
+  revenue: '₹7,770',
+  profit: '₹3,108',
+  change: '+40% margin',
+  alerts: 3,
   topSeller: 'Lays Classic',
 }
 
@@ -52,53 +54,6 @@ export default function ShopkeeperLogin({ onLogin, onBack }) {
           Shopkeeper Login
         </h2>
         <p className="text-black/40 text-sm mt-1.5 font-light">Sign in with your store account</p>
-      </div>
-
-      {/* Daily Summary Preview Card */}
-      <div
-        className="rounded-[16px] p-4 mb-5 shrink-0"
-        style={{
-          background: 'linear-gradient(135deg, #007aff 0%, #5856d6 100%)',
-          boxShadow: '0 4px 16px rgba(0,122,255,0.25)',
-        }}
-      >
-        <p className="text-white/60 text-[10px] font-medium tracking-wide mb-2">📊 YESTERDAY'S SUMMARY</p>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-white text-2xl font-bold" style={{ letterSpacing: '-0.5px' }}>
-              {DAILY_SUMMARY.revenue}
-            </p>
-            <p className="text-white/60 text-xs mt-0.5">Total Revenue</p>
-          </div>
-          <span
-            className="text-sm font-bold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}
-          >
-            {DAILY_SUMMARY.change}
-          </span>
-        </div>
-        <div className="flex gap-3">
-          <div
-            className="flex-1 rounded-[10px] px-3 py-2 flex items-center gap-2"
-            style={{ background: 'rgba(255,255,255,0.15)' }}
-          >
-            <span className="text-base">🚨</span>
-            <div>
-              <p className="text-white text-xs font-semibold">{DAILY_SUMMARY.alerts} Alerts</p>
-              <p className="text-white/50 text-[10px]">pending</p>
-            </div>
-          </div>
-          <div
-            className="flex-1 rounded-[10px] px-3 py-2 flex items-center gap-2"
-            style={{ background: 'rgba(255,255,255,0.15)' }}
-          >
-            <span className="text-base">🏆</span>
-            <div>
-              <p className="text-white text-xs font-semibold truncate">{DAILY_SUMMARY.topSeller}</p>
-              <p className="text-white/50 text-[10px]">top seller</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Login fields */}

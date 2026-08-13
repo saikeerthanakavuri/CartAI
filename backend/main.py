@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from database.db import init_db
 from database.seed import seed
 from routes import products, cart, vision, copilot
+from dotenv import load_dotenv
+
+load_dotenv()  # Load .env file so GEMINI_API_KEY is available
 
 app = FastAPI(
     title="CartAI Backend",

@@ -8,7 +8,7 @@ import os
 
 router = APIRouter(prefix="/vision", tags=["vision"])
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAb8RN6KvGkkV86N-I3Ln1pcUO1g4WYFSkAb-x87Cbwqrdlm1Nw")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # Product catalog for price lookup after identification
 PRODUCT_CATALOG = [

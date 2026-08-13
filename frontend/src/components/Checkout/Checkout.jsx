@@ -1,9 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
-export default function Checkout({ cartItems, customer, onDone, onBack }) {
-  const totalPrice = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+// React Strict Mode deliberately mounts effects twice in development. Cache the
+// request by receipt id so the same checkout is never posted twice.
+const checkoutRequests = new Map()
+
+export default function Checkout({ cartItems, customer, discount = 0, appliedOffers = [], onDone, onBack }) {
+  const subtotal = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+  const totalPrice = Math.max(0, subtotal - discount)
   const totalItems = cartItems.reduce((sum, i) => sum + i.qty, 0)
+  const [checkoutState, setCheckoutState] = useState('processing')
+  const [checkoutError, setCheckoutError] = useState('')
 
   // Build receipt ID and timestamp
   const receiptId = useMemo(() => 'CART-' + Date.now().toString(36).toUpperCase(), [])
@@ -14,6 +22,48 @@ export default function Checkout({ cartItems, customer, onDone, onBack }) {
       hour: '2-digit', minute: '2-digit', hour12: true,
     })
   }, [])
+
+  // POST checkout to backend on mount — updates inventory & records transaction
+  useEffect(() => {
+    const payload = {
+      receipt_id: receiptId,
+      mobile: customer?.mobile || null,
+      items: cartItems.map(i => ({
+        id: i.id,
+        name: i.name,
+        qty: i.qty,
+        price: i.price,
+        emoji: i.emoji || '📦',
+        variant: i.variant || '',
+      })),
+      total: totalPrice,
+      discount,
+      offers: appliedOffers.map(offer => ({ id: offer.id, title: offer.title, saving: offer.saving })),
+    }
+    const existingRequest = checkoutRequests.get(receiptId)
+    const request = existingRequest || fetch(`${BACKEND_URL}/cart/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.detail || 'Checkout could not be saved')
+        return data
+      })
+    checkoutRequests.set(receiptId, request)
+    request
+      .then(data => {
+        console.log('✅ Checkout recorded:', data.receipt_id)
+        setCheckoutState('complete')
+      })
+      .catch(err => {
+        console.warn('⚠️ Checkout backend error:', err.message)
+        setCheckoutError(err.message)
+        setCheckoutState('error')
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run once on mount
 
   // QR payload — compact JSON string the cashier/exit scanner would verify
   const qrPayload = useMemo(() => JSON.stringify({
@@ -44,10 +94,13 @@ export default function Checkout({ cartItems, customer, onDone, onBack }) {
           <span className="text-black/60 text-base leading-none" style={{ marginTop: -1 }}>‹</span>
         </button>
         <div>
-          <p className="text-black/40 text-xs font-light">Order Confirmed</p>
+          <p className="text-black/40 text-xs font-light">
+            {checkoutState === 'processing' ? 'Processing payment…' : checkoutState === 'complete' ? 'Payment done' : 'Payment could not be completed'}
+          </p>
           <h2 className="text-black font-semibold text-xl mt-0.5" style={{ letterSpacing: '-0.4px' }}>
-            Your Receipt 🧾
+            {checkoutState === 'error' ? 'Checkout unavailable' : 'Payment Done ✓'}
           </h2>
+          {checkoutState === 'error' && <p className="text-[#ff3b30] text-xs mt-1">{checkoutError}</p>}
         </div>
       </div>
 
@@ -65,7 +118,7 @@ export default function Checkout({ cartItems, customer, onDone, onBack }) {
 
           <div className="text-center">
             <p className="text-black font-semibold text-base" style={{ letterSpacing: '-0.2px' }}>
-              Scan to Exit
+              Payment successful
             </p>
             <p className="text-black/40 text-xs mt-1 font-light">
               Show this QR at the store exit
@@ -136,6 +189,21 @@ export default function Checkout({ cartItems, customer, onDone, onBack }) {
             ))}
           </div>
 
+          {discount > 0 && (
+            <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+              <div className="flex justify-between text-xs" style={{ color: 'rgba(0,0,0,0.5)' }}>
+                <span>Subtotal</span>
+                <span>₹{subtotal}</span>
+              </div>
+              {appliedOffers.map(offer => (
+                <div key={offer.id} className="flex justify-between text-xs font-medium mt-1" style={{ color: '#34c759' }}>
+                  <span>{offer.title}</span>
+                  <span>−₹{offer.saving}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Total row */}
           <div
             className="flex justify-between items-center mt-3 pt-3"
@@ -169,10 +237,11 @@ export default function Checkout({ cartItems, customer, onDone, onBack }) {
         {/* ── Done button ── */}
         <button
           onClick={onDone}
+          disabled={checkoutState !== 'complete'}
           className="w-full py-3.5 rounded-[14px] text-white font-semibold text-base active:scale-[0.98] transition-transform mt-1"
-          style={{ background: '#007aff' }}
+          style={{ background: checkoutState === 'complete' ? '#007aff' : '#8e8e93', cursor: checkoutState === 'complete' ? 'pointer' : 'not-allowed' }}
         >
-          Done · Shop Again
+          {checkoutState === 'processing' ? 'Processing Payment…' : checkoutState === 'complete' ? 'Done · Back to Cart' : 'Payment Could Not Be Completed'}
         </button>
       </div>
     </div>

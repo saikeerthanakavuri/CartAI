@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getTotalRevenue, getTotalProfit, getCriticalStock, getExpiringSoon, getDroppingSales } from '../../data/products.js'
 
-const GEMINI_API_KEY = 'AIzaSyAb8RN6KvGkkV86N-I3Ln1pcUO1g4WYFSkAb-x87Cbwqrdlm1Nw'
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 
 export default function AIChat({ products }) {
   const [open, setOpen] = useState(false)
@@ -85,7 +85,7 @@ ${products.map(p => `- ${p.name} (${p.category}): cost â‚¹${p.costPrice}, sell â
 
     try {
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
       const prompt = `You are an AI business copilot for a small Indian retail store owner.
 You have access to their real-time store data.

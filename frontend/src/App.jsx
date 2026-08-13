@@ -6,8 +6,9 @@ import CustomerLogin from './components/CustomerLogin/CustomerLogin'
 import ShopkeeperLogin from './components/ShopkeeperLogin/ShopkeeperLogin'
 import Cart from './components/Cart/Cart'
 import Dashboard from './components/Dashboard/Dashboard'
+import ExitScanner from './components/ExitScanner/ExitScanner'
 
-// Screens: 'home' | 'login-selector' | 'customer-login' | 'shopkeeper-login' | 'cart' | 'dashboard'
+// Screens: 'home' | 'login-selector' | 'customer-login' | 'shopkeeper-login' | 'cart' | 'dashboard' | 'exit-scanner'
 
 export default function App() {
   const [screen, setScreen] = useState('home')
@@ -21,7 +22,7 @@ export default function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'home':
-        return <HomeScreen onOpenApp={() => navigate('login-selector')} />
+        return <HomeScreen onOpenApp={() => navigate('login-selector')} onOpenScanner={() => navigate('exit-scanner')} />
       case 'login-selector':
         return (
           <LoginSelector
@@ -53,8 +54,10 @@ export default function App() {
         )
       case 'dashboard':
         return <Dashboard onLogout={() => navigate('login-selector')} />
+      case 'exit-scanner':
+        return <ExitScanner onBack={() => navigate('home')} />
       default:
-        return <HomeScreen onOpenApp={() => navigate('login-selector')} />
+        return <HomeScreen onOpenApp={() => navigate('login-selector')} onOpenScanner={() => navigate('exit-scanner')} />
     }
   }
 
